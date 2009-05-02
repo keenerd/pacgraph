@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import random, math, subprocess, os, copy
+import random, math, subprocess, os, cProfile
 from optparse import OptionParser
 from itertools import *
 from collections import deque, defaultdict
@@ -238,11 +238,9 @@ def bbox(center, dim):
 
 def common_ranges(r1, r2):
     "returns true if overlap"
-    r1,r2 = list(r1), list(r2)
-    a = sorted([r1, r2])
-    a = a[0] + a[1]
-    b = sorted(r1 + r2)
-    return a != b
+    if r1 < r2:
+        return r1[1] > r2[0]
+    return r2[1] > r1[0]
 
 def in_box(bbox1, bbox2):
     cr = common_ranges
@@ -486,14 +484,15 @@ def main():
 
 if __name__ == "__main__":
     main()
+    #cProfile.run("main()", sort=1)
 
 """
-possible/future command line args
+possible/future command line options
 
 -f  --file        output file name
 -a  --add         packages
 -c  --chains      retain package chains
 -d  --dot         load dot file
 
-line weight? alpha? tree dump/load?
+line weight? alpha? tree dump/load? arg for distro?
 """
