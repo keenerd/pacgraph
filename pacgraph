@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
-import random, math, subprocess, os, cProfile
-from optparse import OptionParser
+import random, math, subprocess, os, cProfile, optparse
 from itertools import *
 from collections import deque, defaultdict
 
@@ -253,7 +252,7 @@ def all_bboxes(name, coords, pri=None):
 def normalize(point, origin):
     p2 = point[0]-origin[0], point[1]-origin[1]
     length = (p2[0]**2 + p2[1]**2)**0.5
-    return p2[0]/length, p2[1]/length
+    return p2[0]/(length**2), p2[1]/(length**2)
 
 def link_pull(name, origin_n, packs, coords):
     "average of angles of links"
@@ -400,15 +399,26 @@ def call(cmd):
     subprocess.call([cmd], shell=True)
 
 def parse():
-    parser = OptionParser()
     default_action = 'arch'
-    parser.add_option('-b', '--background', dest='background', default='#ffffff')
-    parser.add_option('-l', '--link', dest='link', default='#606060')
-    parser.add_option('-t', '--top', dest='toplevel', default='#0000ff')
-    parser.add_option('-d', '--dep', dest='dependency', default='#6a6aa2')
-    parser.add_option('-p', '--point', dest='point_size', type='int', nargs=2, default=(10,100))
-    parser.add_option('-s', '--svg', dest='svg_only', action='store_true', default=False)
-    parser.add_option('-m', '--mode', dest='mode', default=default_action)
+    parser = optparse.OptionParser(description='Produces two files, pacgraph.svg and pacgraph.png.  Colors should be entered as hex values like "#ffffff".  SVG named colors may also work, see http://en.wikipedia.org/wiki/Web_colors')
+    parser.add_option('-s', '--svg', dest='svg_only', action='store_true', default=False,
+                        help='Produce the SVG but do not attempt to rasterize it.')
+    parser.add_option('-b', '--background', dest='background', metavar='COLOR', default='#ffffff',
+            help='Background color.  Requires Inkscape.')
+    parser.add_option('-l', '--link', dest='link', metavar='COLOR', default='#606060',
+            help='Color of links between packages.')
+    parser.add_option('-t', '--top', dest='toplevel', metavar='COLOR', default='#0000ff',
+            help='Color of packages which are not dependencies.')
+    parser.add_option('-d', '--dep', dest='dependency', metavar='COLOR', default='#6a6aa2',
+            help='Color of packages which are dependencies.')
+    parser.add_option('-p', '--point', dest='point_size', metavar='INT INT', type='int', nargs=2, default=(10,100),
+            help='Takes two integers, for the smallest and largest font size.  Default is -p 10 100.')
+
+    beta = optparse.OptionGroup(parser, "Experimental Options")
+    beta.add_option('-m', '--mode', dest='mode', default=default_action,
+            help='Curently supported modes are arch and arch-repo (buggy).  Default is %s.' % default_action)
+    parser.add_option_group(beta)
+
     options, args = parser.parse_args()
     return options, args
 
