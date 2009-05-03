@@ -226,7 +226,7 @@ def ran_rad():
 def bbox(center, dim):
     c,d = center,dim
     x1,x2 = c[0]-d[0]//2, c[0]+d[0]//2
-    y1,y2 = c[1]-d[1]//2, c[1]+d[1]//2
+    y1,y2 = c[1]-d[1]   , c[1]+d[1]//3
     return [x1, y1, x2, y2] 
 
 def common_ranges(r1, r2):
@@ -286,7 +286,7 @@ def pol2xy(o,a,r):
 
 def pt2dim(name, pt):
     x_scale = 0.65
-    y_scale = 1.50
+    y_scale = 0.75
     return int(len(name)*pt*x_scale), int(pt*y_scale)
 
 def empty_coords(packs):
