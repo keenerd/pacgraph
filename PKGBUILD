@@ -14,8 +14,8 @@ md5sums=('64df11306d4a1869dbaff1eda5331d9e')
 
 build() {
   cd $startdir/src/$pkgname
-  mkdir -p $pkgdir/usr/sbin/
-  cp pacgraph $pkgdir/usr/sbin/
+  mkdir -p $pkgdir/usr/bin/
+  cp pacgraph $pkgdir/usr/bin/
 }
 
 
