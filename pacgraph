@@ -13,6 +13,30 @@ from collections import deque, defaultdict
 
 pj = os.path.join
 
+class Node(object):
+    def __init__(self, **kwargs):
+        self.name    = ''      # matches dict key
+        self.links   = set([]) # of name strings
+        self.inverse = set([]) # of name strings
+        self.size    = 0       # eventually pts
+        self.center  = (0,0)   # (x,y)
+        #self.dim     = (0,0)   # (w,h)
+        #self.color   = ''      # "#ffffff"
+        self.__dict__.update(kwargs)
+    # cache the slowest of these?
+    @property
+    def all(self):
+        return self.links | self.inverse
+    @property
+    def dim(self):
+        return pt2dim(self.name, self.size)
+    @property
+    def box(self):
+        return bbox(self.center, self.dim)
+    @property
+    def cd(self):
+        return [self.center, self.dim]
+
 def l_part(n, c):
     return n.partition(c)[0]
 
@@ -95,7 +119,7 @@ def merge_tree(tree):
         deps = tp['DEPENDS'] + tp['OPTDEPENDS']
         # remove unused optdeps
         deps = actually_installed(deps, tree)
-        tree2[p] = (tree[p]['SIZE'], deps)
+	tree2[p] = Node(name=p, size=tree[p]['SIZE'], links=set(deps))
     return tree2
 # end ArchLinux specific code
 
@@ -108,31 +132,22 @@ def full_deps(package, tree):
         if current in deps:
             continue
         deps.add(current)
-        current_deps = set(tree[current][1])
+        current_deps = tree[current].links
         to_crawl.extend(current_deps - deps)
     return list(deps)
 
-def invert_tree(tree):
-    "turns depends-on into required-by"
-    reqs = dict((p,(tree[p][0], [])) for p in tree)
+def bilink_tree(tree):
+    "adds inverse from links"
     for p in tree:
-        deps = tree[p][1]
-        [reqs[d][1].append(p) for d in deps]
-    return reqs
+        deps = tree[p].links
+        [tree[d].inverse.add(p) for d in deps]
+    return tree
 
 def flatten(list_of_lists):
     return list(chain.from_iterable(list_of_lists))
 
-def rle(m):
-    return ((n, len(list(g))) for n,g in groupby(m))
-
-def all_deps(tree):
-    return flatten(v[1] for k,v in tree.items())
-
 def single_depends(tree):
-    "packages with only one parent"
-    dep_count = (rle(sorted(all_deps(tree))))
-    return (n for n,l in dep_count if l == 1)
+    return (p for p in tree if len(tree[p].inverse) == 1)
 
 def compress_chains(tree):
     "single depends are absorbed into parent"
@@ -142,17 +157,18 @@ def compress_chains(tree):
             s = singles.next()
         except StopIteration:
             return tree
-        req_by = invert_tree(tree)
-        parent = req_by[s][1][0]
+        parent = list(tree[s].inverse)[0]
         #print 'merge', s, 'into', parent
-        new_size = tree[parent][0] + tree[s][0]
-        new_deps = tree[parent][1] + tree[s][1]
-        new_deps = list(set(new_deps) - set([s]))
-        tree[parent] = (new_size, new_deps)
+        tree[parent].size += tree[s].size
+        for dep in tree[s].links:
+            tree[dep].inverse.remove(s)
+            tree[dep].inverse.add(parent)
+        tree[parent].links.update(tree[s].links)
+        tree[parent].links.remove(s)
         tree.pop(s)
 
 def sum_sizes(packages, tree):
-    return sum(tree[p][0] for p in packages if p in tree)
+    return sum(tree[p].size for p in packages if p in tree)
 
 def shared_size(package, tree):
     "package and all deps"
@@ -162,19 +178,15 @@ def biggest_packs(tree):
     packs = [(shared_size(p, tree), p) for p in tree]
     return [p for s,p in reversed(sorted(packs))]
 
-def dep_sizes(tree):
-    "include deps in size"
-    return dict((p, (shared_size(p, tree), tree[p][1])) for p in tree)
-
 def arch_load():
     dirs = ['/var/lib/pacman/local/']
-    return compress_chains(merge_tree(load_tree(dirs)))
+    return compress_chains(bilink_tree(merge_tree(load_tree(dirs))))
 
-def arch_repo_load(packages):
+def arch_repo_load(packages=None):
     dirs = ['/var/lib/pacman/sync/community/',
             '/var/lib/pacman/sync/core/',
             '/var/lib/pacman/sync/extra/']
-    tree = merge_tree(load_tree(dirs))
+    tree = bilink_tree(merge_tree(load_tree(dirs)))
     if not packages:
         return compress_chains(tree)
     deps = [d for p in packages for d in full_deps(p, tree)]
@@ -182,40 +194,31 @@ def arch_repo_load(packages):
     return tree2
 
 def toplevel_packs(tree):
-    "do this before bidrection, returns set"
-    return set(tree.keys()) - set(all_deps(tree))
+    return set(p for p in tree if not tree[p].inverse)
 
 #print 'worst shared packages:', biggest_packs(tree)[:20]
 #print 'most crucial packages:', biggest_packs(invert_tree(tree))[:20]
 
-def bidirection(packs):
-    packs2 = invert_tree(packs)
-    for name in packs2:
-        packs2[name][1].extend(packs[name][1])
-        packs2[name] = packs2[name][0], list(set(packs2[name][1]))
-    return packs2
-
 def pt_sizes(tree, min_pt=10, max_pt=100):
     "size in bytes -> size in points"
-    sizes = [deps[0] for p,deps in tree.iteritems()]
+    sizes = [node.size for p,node in tree.iteritems()]
     min_s,max_s = min(sizes), max(sizes)
-    for p, deps in tree.iteritems():
-        size = deps[0]
-        pt = int((max_pt-min_pt)*(size-min_s)/(max_s-min_s) + min_pt)
-        tree[p] = (pt, tree[p][1])
+    convert = lambda s: int((max_pt-min_pt)*(s-min_s)/(max_s-min_s) + min_pt)
+    for p, node in tree.iteritems():
+        tree[p].size = convert(node.size)
     return tree
 
 def prioritized(packs):
     "returns list of names, sorted by priority"
     # first are the most 'central'
-    stats = [(len(v[1]), k) for k,v in packs.items()]
+    stats = [(len(node.all), k) for k,node in packs.items()]
     stats = [n for l,n in reversed(sorted(stats))]
     # but slip in anyone who's deps are met early
     stats2 = []
     for n in (n for n in stats if n not in stats2):
         stats2.append(n)
         plotted = set(stats2)
-        deps_met = [k for k,v in packs.items() if set(v[1]) <= plotted]
+        deps_met = [k for k,node in packs.items() if node.all <= plotted]
         stats2.extend(set(deps_met) - plotted)
     return stats2
 
@@ -242,31 +245,31 @@ def in_box(bbox1, bbox2):
     r2y = bbox2[1::2]
     return cr(r1x, r2x) and cr(r1y, r2y)
 
-def all_bboxes(name, coords, pri=None):
+def all_bboxes(name, packs, pri=None):
     if pri is None:
-        name_list = coords.keys()
+        name_list = packs.keys()
     else:
         name_list = pri[:pri.index(name)]
-    return [bbox(*coords[n]) for n in name_list]
+    return [packs[n].box for n in name_list]
 
 def normalize(point, origin):
     p2 = point[0]-origin[0], point[1]-origin[1]
     length = (p2[0]**2 + p2[1]**2)**0.5
     return p2[0]/(length**2), p2[1]/(length**2)
 
-def link_pull(name, origin_n, packs, coords):
+def link_pull(name, origin_n, packs):
     "average of angles of links"
-    origin = coords[origin_n][0]
+    origin = packs[origin_n].center
     norm_ps = lambda ps: [normalize(c, origin) for c in ps if c not in [(0,0), origin]] 
-    good_links = packs[name][1]
-    bad_links  = packs[origin_n][1]
-    g_centers  = norm_ps(coords[l][0] for l in good_links)
-    b_centers  = norm_ps(coords[l][0] for l in bad_links)
+    good_links = packs[name].all
+    bad_links  = packs[origin_n].all
+    g_centers  = norm_ps(packs[l].center for l in good_links)
+    b_centers  = norm_ps(packs[l].center for l in bad_links)
     b_centers  = [(-x,-y) for x,y in b_centers]
     centers = g_centers + b_centers
     if not centers:  
         # new branch, try to avoid existing branches
-        centers = norm_ps(coords[l][0] for l in coords.keys())
+        centers = norm_ps(packs[l].center for l in packs.keys())
         if not centers:
             return (0,0)
         centers = [(-x,-y) for x,y in centers]
@@ -288,13 +291,10 @@ def pt2dim(name, pt):
     y_scale = 0.75
     return int(len(name)*pt*x_scale), int(pt*y_scale)
 
-def empty_coords(packs):
-    return dict((k, [(0,0), pt2dim(k,v[0])]) for k,v in packs.items())
-
 def best_origin(name, pri, packs):
     "returns sibling with most links, or root"
     possible = pri[:pri.index(name)]
-    possible = [n for n in possible if n in packs[name][1]]
+    possible = [n for n in possible if n in packs[name].all]
     if not possible:
         return pri[0]  # root package
     return possible[0]
@@ -318,19 +318,19 @@ def search(cd, origin, heading, scale, b_list):
 
 def place(packs):
     "radial placement algo, returns non-overlapping coords"
-    coords = empty_coords(packs)
+    #coords = empty_coords(packs)
     # coords = {name: [(x_pos,y_pos), (x_size, y_size)], ...}
     pri = prioritized(packs)
     for name in pri[1:]:
         origin_name = best_origin(name, pri, packs)
-        print 'placing', name, 'around', origin_name
-        origin = coords[origin_name][0]
-        heading = xy2rad(*link_pull(name, origin_name, packs, coords))
-        scale = len(packs[name][1])+1  # more links need more room
-        b_list = all_bboxes(name, coords, pri)
-        r = search(coords[name], origin, heading, scale, b_list)
-        coords[name][0] = pol2xy(origin, heading, r)
-    return coords
+        #print 'placing', name, 'around', origin_name
+        origin = packs[origin_name].center
+        heading = xy2rad(*link_pull(name, origin_name, packs))
+        scale = len(packs[name].all)+1  # more links need more room
+        b_list = all_bboxes(name, packs, pri)
+        r = search(packs[name].cd, origin, heading, scale, b_list)
+        packs[name].center = pol2xy(origin, heading, r)
+    return packs
 
 def offset_coord(c,d):
     "corrects textbox origin"
@@ -361,39 +361,39 @@ def svg_text(text, center_dim, size):
 def svg_spline(point1, point2):
     return xml_wrap('path', None, d=quad_spline(point1, point2))
 
-def all_points(coords):
+def all_points(packs):
     "slightly incomplete, clips the splines"
-    return flatten((bb[:2],bb[2:]) for bb in all_bboxes(None,coords))
+    return flatten((bb[:2],bb[2:]) for bb in all_bboxes(None,packs))
 
-def recenter(coords, points):
+def recenter(packs, points):
     "shift everything into quadrant 1"
     min_x,min_y = map(min, zip(*points))
-    for name in coords:
-        p = coords[name][0]
-        coords[name][0] = p[0]-min_x, p[1]-min_y
-    return coords
+    for name in packs:
+        p = packs[name].center
+        packs[name].center = p[0]-min_x, p[1]-min_y
+    return packs
 
 def window_size(points):
     xs,ys = zip(*points)
     return max(xs)-min(xs), max(ys)-min(ys)
 
-def svgify(packs, coords, toplevel, options):
+def svgify(packs, options):
+    toplevel = toplevel_packs(packs)
     bottomlevel = set(packs) - toplevel
-    all_ps = all_points(coords)
-    coords = recenter(coords, all_ps)
-    text1 = [svg_text(p, coords[p], packs[p][0]) for p in bottomlevel]
-    text2 = [svg_text(p, coords[p], packs[p][0]) for p in toplevel]
+    all_ps = all_points(packs)
+    packs = recenter(packs, all_ps)
+    text1 = [svg_text(p, packs[p].cd, packs[p].size) for p in bottomlevel]
+    text2 = [svg_text(p, packs[p].cd, packs[p].size) for p in toplevel]
     paths = []
     for pack in packs:
-        size,links = packs[pack]
-        p1 = coords[pack][0]
-        paths.extend(svg_spline(p1,coords[l][0]) for l in links if l<pack)
+        links = packs[pack].all
+        p1 = packs[pack].center
+        paths.extend(svg_spline(p1,packs[l].center) for l in links if l<pack)
     svg = xml_wrap('g', '\n'.join(paths), style='stroke:%s; stroke-opacity:0.15; fill:none;' % options.link)
     svg += xml_wrap('g', '\n'.join(text1), **{'font-family':'Monospace', 'fill':options.dependency})
     svg += xml_wrap('g', '\n'.join(text2), **{'font-family':'Monospace', 'fill':options.toplevel})
     svg = xml_wrap('svg', svg, **dict(zip(['width','height'],window_size(all_ps))))
     open('pacgraph.svg', 'w').write(svg)
-
 
 def call(cmd):
     subprocess.call([cmd], shell=True)
@@ -418,7 +418,7 @@ def parse():
     beta.add_option('-m', '--mode', dest='mode', default=default_action,
             help='Curently supported modes are arch and arch-repo (buggy).  Default is %s.' % default_action)
     parser.add_option_group(beta)
-
+    
     options, args = parser.parse_args()
     return options, args
 
@@ -430,12 +430,10 @@ def main():
     if options.mode == 'arch-repo':
         tree = arch_repo_load(args)
     tree = pt_sizes(tree, *options.point_size)
-    toplevel = toplevel_packs(tree)
-    packs = bidirection(tree)
     print 'Placing all packages'
-    coords = place(packs)
+    packs = place(tree)
     print 'Saving SVG'
-    svgify(packs, coords, toplevel, options)
+    svgify(packs, options)
     if options.svg_only:
         return
     print 'Rendering SVG'
@@ -464,5 +462,5 @@ possible/future command line options
 -c  --chains      retain package chains
 -d  --dot         load dot file
 
-line weight? alpha? tree dump/load? arg for distro? system stats?
+line weight? alpha? tree dump/load? system stats?
 """
