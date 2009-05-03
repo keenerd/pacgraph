@@ -14,9 +14,6 @@ from collections import deque, defaultdict
 
 pj = os.path.join
 
-# start ArchLinux specific code
-pac_dir = "/var/lib/pacman/local/"
-
 def l_part(n, c):
     return n.partition(c)[0]
 
@@ -26,6 +23,7 @@ def reduce_by(fn, data, arg_list):
         return data
     return reduce_by(fn, data, arg_list)
 
+# start ArchLinux specific code
 def clean(n):
     return reduce_by(l_part, n.strip(), list('><:='))
 
@@ -43,26 +41,28 @@ def load_info(arch_file):
     return info
 
 def strip_info(info):
-    keep = ['DEPENDS', 'OPTDEPENDS', 'PROVIDES', 'SIZE']
+    keep = ['DEPENDS', 'OPTDEPENDS', 'PROVIDES', 'SIZE', 'ISIZE']
     info = dict((k.strip('%'),v) for k,v in info.items())
     name = info['NAME'][0]
     info = dict((k,v) for k,v in info.items() if k in keep)
+    if 'ISIZE' in info:
+        info['SIZE'] = info['ISIZE']
     if 'SIZE' in info:
         info['SIZE'] = int(info['SIZE'][0], 10)
     else:
         info['SIZE'] = 0
     return name, info
 
-def load_tree():
-    packages = [p for p,d,f in os.walk(pac_dir) if f]
+def load_tree(dirs):
+    packages = [p for r in dirs for p,d,f in os.walk(r) if f]
     tree = {}
     for p in packages:
-        info = {}
-        arch_file = open(pj(p,'depends'), 'r')
-        info.update(load_info(arch_file))
-        arch_file = open(pj(p,'desc'), 'r')
-        info.update(load_info(arch_file))
         try:
+            info = {}
+            arch_file = open(pj(p,'depends'), 'r')
+            info.update(load_info(arch_file))
+            arch_file = open(pj(p,'desc'), 'r')
+            info.update(load_info(arch_file))
             name, info = strip_info(info)
             tree[name] = info
         except:
@@ -167,8 +167,20 @@ def dep_sizes(tree):
     "include deps in size"
     return dict((p, (shared_size(p, tree), tree[p][1])) for p in tree)
 
-def drawable_tree():
-    return compress_chains(merge_tree(load_tree()))
+def arch_load():
+    dirs = ['/var/lib/pacman/local/']
+    return compress_chains(merge_tree(load_tree(dirs)))
+
+def arch_repo_load(packages):
+    dirs = ['/var/lib/pacman/sync/community/',
+            '/var/lib/pacman/sync/core/',
+            '/var/lib/pacman/sync/extra/']
+    tree = merge_tree(load_tree(dirs))
+    if not packages:
+        return compress_chains(tree)
+    deps = [d for p in packages for d in full_deps(p, tree)]
+    tree2 = dict((k,v) for k,v in tree.iteritems() if k in deps)
+    return tree2
 
 def toplevel_packs(tree):
     "do this before bidrection, returns set"
@@ -389,19 +401,24 @@ def call(cmd):
 
 def parse():
     parser = OptionParser()
+    default_action = 'arch'
     parser.add_option('-b', '--background', dest='background', default='#ffffff')
     parser.add_option('-l', '--link', dest='link', default='#606060')
     parser.add_option('-t', '--top', dest='toplevel', default='#0000ff')
     parser.add_option('-d', '--dep', dest='dependency', default='#6a6aa2')
     parser.add_option('-p', '--point', dest='point_size', type='int', nargs=2, default=(10,100))
     parser.add_option('-s', '--svg', dest='svg_only', action='store_true', default=False)
+    parser.add_option('-m', '--mode', dest='mode', default=default_action)
     options, args = parser.parse_args()
-    return options
+    return options, args
 
 def main():
-    options = parse()
+    options, args = parse()
     print 'Loading package info'
-    tree = drawable_tree()
+    if options.mode == 'arch':
+        tree = arch_load()
+    if options.mode == 'arch-repo':
+        tree = arch_repo_load(args)
     tree = pt_sizes(tree, *options.point_size)
     toplevel = toplevel_packs(tree)
     packs = bidirection(tree)
