@@ -10,7 +10,7 @@ depends=('python')
 makedepends=()
 optdepends=('inkscape' 'imagemagick' 'svg2png')
 source=(http://kmkeen.com/pacgraph/$pkgname-$pkgver.tar.gz)
-md5sums=('64df11306d4a1869dbaff1eda5331d9e')
+md5sums=('f7f8d0a12d3eeab2717c4b8ed1dbc47c')
 
 build() {
   cd $startdir/src/$pkgname
