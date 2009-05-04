@@ -211,7 +211,7 @@ def pt_sizes(tree, min_pt=10, max_pt=100):
 
 def prioritized(packs):
     "returns list of names, sorted by priority"
-    # first are the most 'central'
+    # first are the most central, with lots of links
     stats = [(len(node.all), k) for k,node in packs.items()]
     stats = [n for l,n in reversed(sorted(stats))]
     # but slip in anyone who's deps are met early
@@ -264,14 +264,11 @@ def link_pull(name, origin_n, packs):
     norm_ps = lambda ps: [normalize(c, origin) for c in ps if c not in [(0,0), origin]]
     rot90 = lambda x,y: (-y,x) if random.randint(0,1) else (y,-x)
     good_links = packs[name].all
-    bad_links  = packs[origin_n].all
-    skew_links = set(packs.keys()) - good_links - bad_links
+    skew_links = set(packs.keys()) - good_links
     g_centers  = norm_ps(packs[l].center for l in good_links)
-    b_centers  = norm_ps(packs[l].center for l in bad_links)
-    b_centers  = [(-x,-y) for x,y in b_centers]
     s_centers  = norm_ps(packs[l].center for l in skew_links)
     s_centers  = [rot90(*xy) for xy in s_centers]
-    centers = g_centers + b_centers + s_centers
+    centers = g_centers + s_centers
     if not centers:  
         # new branch, try to avoid existing branches
         centers = norm_ps(packs[l].center for l in packs.keys())
@@ -293,16 +290,16 @@ def pol2xy(o,a,r):
 
 def pt2dim(name, pt):
     x_scale = 0.65
-    y_scale = 0.75
+    y_scale = 0.85
     return int(len(name)*pt*x_scale), int(pt*y_scale)
 
 def best_origin(name, pri, packs):
-    "returns sibling with most links, or root"
+    "returns largest sibling, or root"
     possible = pri[:pri.index(name)]
     possible = [n for n in possible if n in packs[name].all]
     if not possible:
         return pri[0]  # root package
-    return possible[0]
+    return sorted((packs[n].size, n) for n in possible)[-1][1]
 
 def search(cd, origin, heading, scale, b_list):
     "binary search recursive closure thingy, returns radius"
@@ -323,8 +320,7 @@ def search(cd, origin, heading, scale, b_list):
 
 def place(packs):
     "radial placement algo, returns non-overlapping coords"
-    #coords = empty_coords(packs)
-    # coords = {name: [(x_pos,y_pos), (x_size, y_size)], ...}
+    # maybe try two different link_pulls for each placement?
     pri = prioritized(packs)
     for name in pri[1:]:
         origin_name = best_origin(name, pri, packs)
@@ -351,7 +347,7 @@ def control_point(p1, p2):
     dx = abs(p2[0] - p1[0])
     lower  = (p1,p2)[p1[1]<p2[1]]
     higher = (p2,p1)[p1[1]<p2[1]]
-    return (lower[0]+higher[0])//2, lower[1]+dx//2
+    return (lower[0]+higher[0])//2, lower[1]+dx*random.random()//2
 
 def quad_spline(p1, p2):
     "boofor DSL in XML"
@@ -475,5 +471,5 @@ possible/future command line options
 -c  --chains      retain package chains
 -d  --dot         load dot file
 
-line weight? alpha? tree dump/load? system stats?
+line weight? alpha? tree dump/load?
 """
