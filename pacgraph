@@ -18,7 +18,8 @@ class Node(object):
         self.name    = ''      # matches dict key
         self.links   = set([]) # of name strings
         self.inverse = set([]) # of name strings
-        self.size    = 0       # eventually pts
+        self.size    = 0       # bytes, usually
+	self.font_pt = 0       # scaled from size
         self.center  = (0,0)   # (x,y)
         #self.dim     = (0,0)   # (w,h)
         #self.color   = ''      # "#ffffff"
@@ -29,7 +30,7 @@ class Node(object):
         return self.links | self.inverse
     @property
     def dim(self):
-        return pt2dim(self.name, self.size)
+        return pt2dim(self.name, self.font_pt)
     @property
     def box(self):
         return bbox(self.center, self.dim)
@@ -205,7 +206,7 @@ def pt_sizes(tree, min_pt=10, max_pt=100):
     min_s,max_s = min(sizes), max(sizes)
     convert = lambda s: int((max_pt-min_pt)*(s-min_s)/(max_s-min_s) + min_pt)
     for p, node in tree.iteritems():
-        tree[p].size = convert(node.size)
+        tree[p].font_pt = convert(node.size)
     return tree
 
 def prioritized(packs):
@@ -260,13 +261,17 @@ def normalize(point, origin):
 def link_pull(name, origin_n, packs):
     "average of angles of links"
     origin = packs[origin_n].center
-    norm_ps = lambda ps: [normalize(c, origin) for c in ps if c not in [(0,0), origin]] 
+    norm_ps = lambda ps: [normalize(c, origin) for c in ps if c not in [(0,0), origin]]
+    rot90 = lambda x,y: (-y,x) if random.randint(0,1) else (y,-x)
     good_links = packs[name].all
     bad_links  = packs[origin_n].all
+    skew_links = set(packs.keys()) - good_links - bad_links
     g_centers  = norm_ps(packs[l].center for l in good_links)
     b_centers  = norm_ps(packs[l].center for l in bad_links)
     b_centers  = [(-x,-y) for x,y in b_centers]
-    centers = g_centers + b_centers
+    s_centers  = norm_ps(packs[l].center for l in skew_links)
+    s_centers  = [rot90(*xy) for xy in s_centers]
+    centers = g_centers + b_centers + s_centers
     if not centers:  
         # new branch, try to avoid existing branches
         centers = norm_ps(packs[l].center for l in packs.keys())
@@ -353,9 +358,9 @@ def quad_spline(p1, p2):
     c = control_point(p1, p2)
     return 'M%i,%i Q%i,%i %i,%i' % (p1+c+p2)
 
-def svg_text(text, center_dim, size):
+def svg_text(text, center_dim, pt):
     p = offset_coord(*center_dim)
-    kw = {'x':p[0], 'y':p[1], 'font-size':size}
+    kw = {'x':p[0], 'y':p[1], 'font-size':pt}
     return xml_wrap('text', text, **kw) 
 
 def svg_spline(point1, point2):
@@ -382,8 +387,8 @@ def svgify(packs, options):
     bottomlevel = set(packs) - toplevel
     all_ps = all_points(packs)
     packs = recenter(packs, all_ps)
-    text1 = [svg_text(p, packs[p].cd, packs[p].size) for p in bottomlevel]
-    text2 = [svg_text(p, packs[p].cd, packs[p].size) for p in toplevel]
+    text1 = [svg_text(p, packs[p].cd, packs[p].font_pt) for p in bottomlevel]
+    text2 = [svg_text(p, packs[p].cd, packs[p].font_pt) for p in toplevel]
     paths = []
     for pack in packs:
         links = packs[pack].all
@@ -422,6 +427,11 @@ def parse():
     options, args = parser.parse_args()
     return options, args
 
+def human_si(number):
+    powers = [(2**15,''), (2**25,'k'), (2**35,'M'), (2**45,'G')]
+    limit,si = [p for p in powers if p[0] > number][0]
+    return str(number//(limit//2**15)) + si +'b'
+
 def main():
     options, args = parse()
     print 'Loading package info'
@@ -432,6 +442,9 @@ def main():
     tree = pt_sizes(tree, *options.point_size)
     print 'Placing all packages'
     packs = place(tree)
+    tree = recenter(tree, all_points(tree))
+    stat_line = 'Total size: %s' % human_si(sum(v.size for k,v in tree.items()))
+    tree[stat_line] = Node(name=stat_line, font_pt=sum(options.point_size)//2)
     print 'Saving SVG'
     svgify(packs, options)
     if options.svg_only:
