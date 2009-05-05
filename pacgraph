@@ -159,6 +159,11 @@ def compress_chains(tree):
         except StopIteration:
             return tree
         parent = list(tree[s].inverse)[0]
+        if s == parent:
+            #print 'self loop', s
+            tree[s].links.remove(s)
+            tree[s].inverse.remove(s)
+            continue
         #print 'merge', s, 'into', parent
         tree[parent].size += tree[s].size
         for dep in tree[s].links:
@@ -439,7 +444,7 @@ def main():
     print 'Placing all packages'
     packs = place(tree)
     tree = recenter(tree, all_points(tree))
-    stat_line = 'Total size: %s' % human_si(sum(v.size for k,v in tree.items()))
+    stat_line = human_si(sum(v.size for k,v in tree.items()))
     tree[stat_line] = Node(name=stat_line, font_pt=sum(options.point_size)//2)
     print 'Saving SVG'
     svgify(packs, options)
