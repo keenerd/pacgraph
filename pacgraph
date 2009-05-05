@@ -402,7 +402,7 @@ def svgify(packs, options):
     open('pacgraph.svg', 'w').write(svg)
 
 def call(cmd):
-    subprocess.call([cmd], shell=True)
+    return subprocess.call([cmd], shell=True)
 
 def parse():
     default_action = 'arch'
@@ -451,14 +451,14 @@ def main():
     if options.svg_only:
         return
     print 'Rendering SVG'
-    if 'inkscape' in tree:
+    if call('which inkscape') == 0:
         call('inkscape -D -b "%s" -e pacgraph.png pacgraph.svg' % options.background)
         return
-    if 'svg2png' in tree:
+    if call('which svg2png') == 0:
         call('svg2png pacgraph.svg pacgraph.png')
-        call('mogrify -background white -layers flatten pacgraph.png')
+        #call('mogrify -background white -layers flatten pacgraph.png')
         return
-    if 'imagemagick' in tree:
+    if call('which convert') == 0:
         call('convert pacgraph.svg pacgraph.png')
         return
     print 'No way to convert SVG to PNG.'
