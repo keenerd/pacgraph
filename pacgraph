@@ -19,7 +19,7 @@ class Node(object):
         self.links   = set([]) # of name strings
         self.inverse = set([]) # of name strings
         self.size    = 0       # bytes, usually
-	self.font_pt = 0       # scaled from size
+        self.font_pt = 0       # scaled from size
         self.center  = (0,0)   # (x,y)
         #self.dim     = (0,0)   # (w,h)
         #self.color   = ''      # "#ffffff"
