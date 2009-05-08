@@ -111,13 +111,15 @@ def actually_installed(packages, tree):
         # len 0 means not installed optdep
     return list(installed)
 
-def merge_tree(tree):
+def merge_tree(tree, options):
     "merge provides, depends, optdepends"
     tree2 = {}
     # merge
     for p in tree:
         tp = defaultdict(list, tree[p])
-        deps = tp['DEPENDS'] + tp['OPTDEPENDS']
+        deps = tp['DEPENDS']
+	if not options.no_opt:
+	    deps += tp['OPTDEPENDS']
         # remove unused optdeps
         deps = actually_installed(deps, tree)
 	tree2[p] = Node(name=p, size=tree[p]['SIZE'], links=set(deps))
@@ -184,23 +186,38 @@ def biggest_packs(tree):
     packs = [(shared_size(p, tree), p) for p in tree]
     return [p for s,p in reversed(sorted(packs))]
 
-def arch_load():
+def arch_load(options):
     dirs = ['/var/lib/pacman/local/']
-    return compress_chains(bilink_tree(merge_tree(load_tree(dirs))))
+    tree = compress_chains(bilink_tree(merge_tree(load_tree(dirs), options)))
+    return legal_links(tree)
 
-def arch_repo_load(packages=None):
+def arch_repo_load(options, packages=None):
     dirs = ['/var/lib/pacman/sync/community/',
             '/var/lib/pacman/sync/core/',
             '/var/lib/pacman/sync/extra/']
-    tree = bilink_tree(merge_tree(load_tree(dirs)))
+    tree = bilink_tree(merge_tree(load_tree(dirs), options))
     if not packages:
-        return compress_chains(tree)
+        return legal_links(compress_chains(tree))
     deps = [d for p in packages for d in full_deps(p, tree)]
     tree2 = dict((k,v) for k,v in tree.iteritems() if k in deps)
-    return tree2
+    return legal_links(tree2)
 
 def toplevel_packs(tree):
     return set(p for p in tree if not tree[p].inverse)
+
+def legal_links(tree):
+    "removes/reports dangling references"
+    valid = set(tree.keys())
+    for k,v in tree.iteritems():
+        invalid1 = v.links - valid
+        invalid2 = v.inverse - valid
+        if invalid1:
+            print 'error: unknown', invalid1, 'in', k 
+            v.links = v.links - invalid1
+        if invalid2:
+           print 'error: unknown', invalid2, 'in', k
+           v.inverse = v.inverse - invalid2
+    return tree
 
 #print 'worst shared packages:', biggest_packs(tree)[:20]
 #print 'most crucial packages:', biggest_packs(invert_tree(tree))[:20]
@@ -409,7 +426,7 @@ def parse():
     default_action = 'arch'
     parser = optparse.OptionParser(description='Produces two files, pacgraph.svg and pacgraph.png.  Colors should be entered as hex values like "#ffffff".  SVG named colors may also work, see http://en.wikipedia.org/wiki/Web_colors')
     parser.add_option('-s', '--svg', dest='svg_only', action='store_true', default=False,
-                        help='Produce the SVG but do not attempt to rasterize it.')
+            help='Produce the SVG but do not attempt to rasterize it.')
     parser.add_option('-b', '--background', dest='background', metavar='COLOR', default='#ffffff',
             help='Background color.  Requires Inkscape.')
     parser.add_option('-l', '--link', dest='link', metavar='COLOR', default='#606060',
@@ -424,6 +441,8 @@ def parse():
     beta = optparse.OptionGroup(parser, "Experimental Options")
     beta.add_option('-m', '--mode', dest='mode', default=default_action,
             help='Curently supported modes are arch and arch-repo (buggy).  Default is %s.' % default_action)
+    beta.add_option('-n', '--noopts', dest='no_opt', action='store_true', default=False,
+            help='Do not link to optional dependencies.')
     parser.add_option_group(beta)
     
     options, args = parser.parse_args()
@@ -438,9 +457,9 @@ def main():
     options, args = parse()
     print 'Loading package info'
     if options.mode == 'arch':
-        tree = arch_load()
+        tree = arch_load(options)
     if options.mode == 'arch-repo':
-        tree = arch_repo_load(args)
+        tree = arch_repo_load(options, args)
     tree = pt_sizes(tree, *options.point_size)
     print 'Placing all packages'
     packs = place(tree)
