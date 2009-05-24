@@ -141,6 +141,44 @@ class Arch(object):
         tree2 = dict((k,v) for k,v in tree.iteritems() if k in deps)
         return legal_links(tree2)
 
+class Debian(object):
+    "Completely untested, a quick hack from reading docs."
+    def call(self, cmd):
+        "returns stdout"
+        subp = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE)
+        return subp.communicate()[0].split('\n')
+    
+    def all_installed(self):
+        stdout = self.call('dpkg --get-selections')
+        return [line.split(' ')[0] for line in stdout]
+    
+    def pkg_info(self, name):
+        stdout = self.call('dpkg -s %s' % name)
+        size = [line for line in stdout if line.startswith('Installed-Size:')]
+        size = int(size[0].split(' ')[1], 10)
+        deps = [line for line in stdout if line.startswith('Depends:')]
+        deps = deps.partition(' ')[2]
+        deps = deps.split(',')
+        deps = [d.parition('(')[0] for d in deps]
+        deps = set(d.strip() for d in deps)
+        return Node(name=name, links=deps, size=size)
+    
+    def load_tree(self):
+        tree = {}
+	for p in self.all_installed():
+            try:
+                tree[name] = self.pkg_info(name)
+            except:
+                print 'Error reading package', p
+        return tree
+    
+    def local_load(self, options):
+        tree = compress_chains(bilink_tree(self.load_tree(), options))
+        return legal_links(tree)
+    
+    def repo_load(self, options, packages=None):
+        print 'not implemented'
+        raise
 
 def full_deps(package, tree):
     "returns every package in dep tree"
@@ -452,7 +490,7 @@ def parse():
 
     beta = optparse.OptionGroup(parser, "Experimental Options")
     beta.add_option('-m', '--mode', dest='mode', default=default_action,
-            help='Curently supported modes are arch and arch-repo (buggy).  Default is %s.' % default_action)
+            help='Curently supported modes are arch and arch-repo (buggy), debian (buggy).  Default is %s.' % default_action)
     parser.add_option_group(beta)
     
     options, args = parser.parse_args()
@@ -465,12 +503,15 @@ def human_si(number):
 
 def main():
     arch = Arch()
+    debian = Debian()
     options, args = parse()
     print 'Loading package info'
     if options.mode == 'arch':
         tree = arch.local_load(options)
     if options.mode == 'arch-repo':
         tree = arch.repo_load(options, args)
+    if options.mode == 'debian':
+	tree = debian.local_load(options)
     stat_line = human_si(sum(v.size for k,v in tree.items()))
     if options.console:
         print 'Total size:', stat_line
