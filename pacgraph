@@ -93,27 +93,32 @@ class Arch(object):
                 print 'Error reading package', p
         return tree
     
-    def search_provides(self, package, tree):
-        "use only on load_tree data"
-        tree2 = dict((p,tree[p]['PROVIDES']) for p in tree if 'PROVIDES' in tree[p])
-        return [p for p in tree2 if package in tree2[p]]
-    
-    def actually_installed(self, packages, tree):
-        "use only on load_tree data"
-        installed = set(packages) & set(tree.keys())
-        maybe = set(packages) - installed
-        for p in maybe:
-            provides = self.search_provides(p, tree)
-            if len(provides) > 1:
-                print 'error:', p, 'found in', provides
-            if len(provides) == 1:
-                installed.add(provides[0])
-            # len 0 means not installed optdep
-        return list(installed)
+    def actually_installed_fn(self, tree):
+        "use only on load_tree data, returns function"
+        p_set = set(tree)
+        errors = {}
+        p_tree = dict((p,tree[p]['PROVIDES']) for p in tree if 'PROVIDES' in tree[p])
+        def actually(packages):
+            installed = set(packages) & p_set
+            maybe = set(packages) - installed
+            for pack in maybe:
+                if pack in errors:
+                    installed.add(errors[pack])
+                    continue
+                provides = sorted(p for p in p_tree if pack in p_tree[p])
+                if len(provides) > 1:
+                    print 'error: %s found in %s, assuming %s' % (pack, provides, provides[0])
+                    errors[pack] = provides[0]
+                if len(provides) >= 1:
+                    installed.add(provides[0])
+                # len 0 means not installed optdep
+            return list(installed)
+        return actually
     
     def merge_tree(self, tree, options):
         "merge provides, depends, optdepends"
         tree2 = {}
+        actually_installed = self.actually_installed_fn(tree)
         # merge
         for p in tree:
             tp = defaultdict(list, tree[p])
@@ -121,7 +126,7 @@ class Arch(object):
             if not options.ignore_opts:
                 deps += tp['OPTDEPENDS']
             # remove unused optdeps
-            deps = self.actually_installed(deps, tree)
+            deps = actually_installed(deps)
             tree2[p] = Node(name=p, size=tree[p]['SIZE'], links=set(deps))
         return tree2
     
