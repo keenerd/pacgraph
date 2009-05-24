@@ -139,12 +139,12 @@ class Arch(object):
         dirs = ['/var/lib/pacman/sync/community/',
                 '/var/lib/pacman/sync/core/',
                 '/var/lib/pacman/sync/extra/']
-        tree = bilink_tree(self.merge_tree(self.load_tree(dirs), options))
+        tree = self.merge_tree(self.load_tree(dirs), options)
         if not packages:
-            return legal_links(compress_chains(tree))
+            return legal_links(compress_chains(bilink_tree(tree)))
         deps = [d for p in packages for d in full_deps(p, tree)]
         tree2 = dict((k,v) for k,v in tree.iteritems() if k in deps)
-        return legal_links(tree2)
+        return legal_links(bilink_tree(tree2))
 
 class Debian(object):
     "Completely untested, a quick hack from reading docs."
@@ -255,15 +255,15 @@ def packs_by_size(tree):
 
 def legal_links(tree):
     "removes/reports dangling references"
-    valid = set(tree.keys())
+    valid = set(tree)
     for k,v in tree.iteritems():
         invalid1 = v.links - valid
         invalid2 = v.inverse - valid
         if invalid1:
-            print 'error: unknown', invalid1, 'in', k 
+            print 'error: unknown', list(invalid1), 'in', k 
             v.links = v.links - invalid1
         if invalid2:
-           print 'error: unknown', invalid2, 'in', k
+           print 'error: unknown', list(invalid2), 'in', k
            v.inverse = v.inverse - invalid2
     return tree
 
@@ -516,11 +516,11 @@ def main():
     if options.mode == 'arch-repo':
         tree = arch.repo_load(options, args)
     if options.mode == 'debian':
-	tree = debian.local_load(options)
+        tree = debian.local_load(options)
     stat_line = human_si(sum(v.size for k,v in tree.items()))
     if options.console:
         print 'Total size:', stat_line
-	tops = toplevel_packs(tree)
+        tops = toplevel_packs(tree)
         for s,n in ((s,n) for s,n in packs_by_size(tree) if n in tops):
             print human_si(s), n
         return
