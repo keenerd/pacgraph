@@ -123,7 +123,7 @@ class Arch(object):
         for p in tree:
             tp = defaultdict(list, tree[p])
             deps = tp['DEPENDS']
-            if not options.ignore_opts:
+            if options.opt_deps:
                 deps += tp['OPTDEPENDS']
             # remove unused optdeps
             deps = actually_installed(deps)
@@ -475,8 +475,8 @@ def parse():
     parser = optparse.OptionParser(description='Produces two files, pacgraph.svg and pacgraph.png.  Colors should be entered as hex values like "#ffffff".  SVG named colors may also work, see http://en.wikipedia.org/wiki/Web_colors')
     parser.add_option('-s', '--svg', dest='svg_only', action='store_true', default=False,
             help='Produce the SVG but do not attempt to rasterize it.')
-    parser.add_option('-i', '--ignore-opts', dest='ignore_opts', action='store_true', default=False,
-            help='Ignore optional dependencies.  May produce a more compact graph.')
+    parser.add_option('-o', '--opt-deps', dest='opt_deps', action='store_true', default=False,
+            help='Include optional dependencies.  May produce a less compact graph.')
     parser.add_option('-c', '--console', dest='console', action='store_true', default=False,
             help='Print summary to console, does not draw a graph.  Good for very slow computers.')
     
