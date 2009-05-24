@@ -47,84 +47,100 @@ def reduce_by(fn, data, arg_list):
         return data
     return reduce_by(fn, data, arg_list)
 
-# start ArchLinux specific code
-def clean(n):
-    return reduce_by(l_part, n.strip(), list('><:='))
+class Arch(object):
+    def clean(self, n):
+        return reduce_by(l_part, n.strip(), list('><:='))
+    
+    def load_info(self, arch_file):
+        info = defaultdict(list)
+        mode = None
+        for line in (self.clean(l) for l in arch_file):
+            if not line:
+                continue
+            if line.startswith('%'):
+                mode = line
+                continue
+            info[mode].append(line)
+        arch_file.close()
+        return info
+    
+    def strip_info(self, info):
+        keep = ['DEPENDS', 'OPTDEPENDS', 'PROVIDES', 'SIZE', 'ISIZE']
+        info = dict((k.strip('%'),v) for k,v in info.items())
+        name = info['NAME'][0]
+        info = dict((k,v) for k,v in info.items() if k in keep)
+        if 'ISIZE' in info:
+            info['SIZE'] = info['ISIZE']
+        if 'SIZE' in info:
+            info['SIZE'] = int(info['SIZE'][0], 10)
+        else:
+            info['SIZE'] = 0
+        return name, info
+    
+    def load_tree(self, dirs):
+        packages = [p for r in dirs for p,d,f in os.walk(r) if f]
+        tree = {}
+        for p in packages:
+            try:
+                info = {}
+                arch_file = open(pj(p,'depends'), 'r')
+                info.update(self.load_info(arch_file))
+                arch_file = open(pj(p,'desc'), 'r')
+                info.update(self.load_info(arch_file))
+                name, info = self.strip_info(info)
+                tree[name] = info
+            except:
+                print 'Error reading package', p
+        return tree
+    
+    def search_provides(self, package, tree):
+        "use only on load_tree data"
+        tree2 = dict((p,tree[p]['PROVIDES']) for p in tree if 'PROVIDES' in tree[p])
+        return [p for p in tree2 if package in tree2[p]]
+    
+    def actually_installed(self, packages, tree):
+        "use only on load_tree data"
+        installed = set(packages) & set(tree.keys())
+        maybe = set(packages) - installed
+        for p in maybe:
+            provides = self.search_provides(p, tree)
+            if len(provides) > 1:
+                print 'error:', p, 'found in', provides
+            if len(provides) == 1:
+                installed.add(provides[0])
+            # len 0 means not installed optdep
+        return list(installed)
+    
+    def merge_tree(self, tree, options):
+        "merge provides, depends, optdepends"
+        tree2 = {}
+        # merge
+        for p in tree:
+            tp = defaultdict(list, tree[p])
+            deps = tp['DEPENDS']
+            if not options.ignore_opts:
+                deps += tp['OPTDEPENDS']
+            # remove unused optdeps
+            deps = self.actually_installed(deps, tree)
+            tree2[p] = Node(name=p, size=tree[p]['SIZE'], links=set(deps))
+        return tree2
+    
+    def local_load(self, options):
+        dirs = ['/var/lib/pacman/local/']
+        tree = compress_chains(bilink_tree(self.merge_tree(self.load_tree(dirs), options)))
+        return legal_links(tree)
+    
+    def repo_load(self, options, packages=None):
+        dirs = ['/var/lib/pacman/sync/community/',
+                '/var/lib/pacman/sync/core/',
+                '/var/lib/pacman/sync/extra/']
+        tree = bilink_tree(self.merge_tree(self.load_tree(dirs), options))
+        if not packages:
+            return legal_links(compress_chains(tree))
+        deps = [d for p in packages for d in full_deps(p, tree)]
+        tree2 = dict((k,v) for k,v in tree.iteritems() if k in deps)
+        return legal_links(tree2)
 
-def load_info(arch_file):
-    info = defaultdict(list)
-    mode = None
-    for line in (clean(l) for l in arch_file):
-        if not line:
-            continue
-        if line.startswith('%'):
-            mode = line
-            continue
-        info[mode].append(line)
-    arch_file.close()
-    return info
-
-def strip_info(info):
-    keep = ['DEPENDS', 'OPTDEPENDS', 'PROVIDES', 'SIZE', 'ISIZE']
-    info = dict((k.strip('%'),v) for k,v in info.items())
-    name = info['NAME'][0]
-    info = dict((k,v) for k,v in info.items() if k in keep)
-    if 'ISIZE' in info:
-        info['SIZE'] = info['ISIZE']
-    if 'SIZE' in info:
-        info['SIZE'] = int(info['SIZE'][0], 10)
-    else:
-        info['SIZE'] = 0
-    return name, info
-
-def load_tree(dirs):
-    packages = [p for r in dirs for p,d,f in os.walk(r) if f]
-    tree = {}
-    for p in packages:
-        try:
-            info = {}
-            arch_file = open(pj(p,'depends'), 'r')
-            info.update(load_info(arch_file))
-            arch_file = open(pj(p,'desc'), 'r')
-            info.update(load_info(arch_file))
-            name, info = strip_info(info)
-            tree[name] = info
-        except:
-            print 'Error reading package', p
-    return tree
-
-def search_provides(package, tree):
-    "use only on load_tree data"
-    tree2 = dict((p,tree[p]['PROVIDES']) for p in tree if 'PROVIDES' in tree[p])
-    return [p for p in tree2 if package in tree2[p]]
-
-def actually_installed(packages, tree):
-    "use only on load_tree data"
-    installed = set(packages) & set(tree.keys())
-    maybe = set(packages) - installed
-    for p in maybe:
-        provides = search_provides(p, tree)
-        if len(provides) > 1:
-            print 'error:', p, 'found in', provides
-        if len(provides) == 1:
-            installed.add(provides[0])
-        # len 0 means not installed optdep
-    return list(installed)
-
-def merge_tree(tree, options):
-    "merge provides, depends, optdepends"
-    tree2 = {}
-    # merge
-    for p in tree:
-        tp = defaultdict(list, tree[p])
-        deps = tp['DEPENDS']
-	if not options.ignore_opts:
-	    deps += tp['OPTDEPENDS']
-        # remove unused optdeps
-        deps = actually_installed(deps, tree)
-	tree2[p] = Node(name=p, size=tree[p]['SIZE'], links=set(deps))
-    return tree2
-# end ArchLinux specific code
 
 def full_deps(package, tree):
     "returns every package in dep tree"
@@ -186,21 +202,6 @@ def biggest_packs(tree):
     packs = [(shared_size(p, tree), p) for p in tree]
     return [p for s,p in reversed(sorted(packs))]
 
-def arch_load(options):
-    dirs = ['/var/lib/pacman/local/']
-    tree = compress_chains(bilink_tree(merge_tree(load_tree(dirs), options)))
-    return legal_links(tree)
-
-def arch_repo_load(options, packages=None):
-    dirs = ['/var/lib/pacman/sync/community/',
-            '/var/lib/pacman/sync/core/',
-            '/var/lib/pacman/sync/extra/']
-    tree = bilink_tree(merge_tree(load_tree(dirs), options))
-    if not packages:
-        return legal_links(compress_chains(tree))
-    deps = [d for p in packages for d in full_deps(p, tree)]
-    tree2 = dict((k,v) for k,v in tree.iteritems() if k in deps)
-    return legal_links(tree2)
 
 def toplevel_packs(tree):
     return set(p for p in tree if not tree[p].inverse)
@@ -463,16 +464,18 @@ def human_si(number):
     return str(number//(limit//2**15)) + si +'b'
 
 def main():
+    arch = Arch()
     options, args = parse()
     print 'Loading package info'
     if options.mode == 'arch':
-        tree = arch_load(options)
+        tree = arch.local_load(options)
     if options.mode == 'arch-repo':
-        tree = arch_repo_load(options, args)
+        tree = arch.repo_load(options, args)
     stat_line = human_si(sum(v.size for k,v in tree.items()))
     if options.console:
         print 'Total size:', stat_line
-        for s,n in packs_by_size(tree):
+	tops = toplevel_packs(tree)
+        for s,n in ((s,n) for s,n in packs_by_size(tree) if n in tops):
             print human_si(s), n
         return
     print 'Placing all packages'
