@@ -80,7 +80,7 @@ class Arch(object):
     def load_tree(self, dirs):
         packages = [p for r in dirs for p,d,f in os.walk(r) if f]
         tree = {}
-        for p in packages:
+        for p in set(packages) - set(dirs):
             try:
                 info = {}
                 arch_file = open(pj(p,'depends'), 'r')
