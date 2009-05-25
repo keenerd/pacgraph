@@ -150,35 +150,39 @@ class Debian(object):
     "Completely untested, a quick hack from reading docs."
     def call(self, cmd):
         "returns stdout"
-        subp = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE)
+        subp = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE, shell=True)
         return subp.communicate()[0].split('\n')
     
     def all_installed(self):
         stdout = self.call('dpkg --get-selections')
-        return [line.split(' ')[0] for line in stdout]
+        return [line.split()[0] for line in stdout if line.endswith('install')]
     
     def pkg_info(self, name):
         stdout = self.call('dpkg -s %s' % name)
         size = [line for line in stdout if line.startswith('Installed-Size:')]
-        size = int(size[0].split(' ')[1], 10)
+        size = int(size[0].split(' ')[1], 10) * 1024
         deps = [line for line in stdout if line.startswith('Depends:')]
-        deps = deps.partition(' ')[2]
-        deps = deps.split(',')
-        deps = [d.parition('(')[0] for d in deps]
-        deps = set(d.strip() for d in deps)
+        if deps:
+            deps = deps.partition(' ')[2]
+            deps = deps.split(',')
+            deps = [d.parition('(')[0] for d in deps]
+            deps = set(d.strip() for d in deps) - set([''])
+        else:
+            deps = set([])
         return Node(name=name, links=deps, size=size)
     
     def load_tree(self):
         tree = {}
 	for p in self.all_installed():
             try:
-                tree[name] = self.pkg_info(name)
+                tree[p] = self.pkg_info(p)
             except:
                 print 'Error reading package', p
         return tree
     
     def local_load(self, options):
-        tree = compress_chains(bilink_tree(self.load_tree(), options))
+        tree = legal_links(self.load_tree())
+        tree = compress_chains(bilink_tree(trees))
         return legal_links(tree)
     
     def repo_load(self, options, packages=None):
