@@ -24,6 +24,10 @@ class Node(object):
         #self.dim     = (0,0)   # (w,h)
         #self.color   = ''      # "#ffffff"
         self.__dict__.update(kwargs)
+    def __repr__(self):
+        return repr({'links'  : self.links, 
+                     'inverse': self.inverse,
+                     'size'   : self.size})
     # cache the slowest of these?
     @property
     def all(self):
@@ -37,6 +41,12 @@ class Node(object):
     @property
     def cd(self):
         return [self.center, self.dim]
+
+def unrip(path):
+    "path -> dict of Nodes"
+    text = ''.join(open(path))
+    tree = eval(text)
+    return dict((p,Node(**n)) for p,n in tree.items())
 
 def l_part(n, c):
     return n.partition(c)[0]
@@ -490,6 +500,8 @@ def parse():
             help='Include optional dependencies.  May produce a less compact graph.')
     parser.add_option('-c', '--console', dest='console', action='store_true', default=False,
             help='Print summary to console, does not draw a graph.  Good for very slow computers.')
+    parser.add_option('-r', '--rip', dest='rip', action='store_true', default=False,
+            help='Rips a copy of your installed packages to pacgraph.txt.  Good for debugging.')
     
     colors = optparse.OptionGroup(parser, "Theming Options")
     colors.add_option('-b', '--background', dest='background', metavar='COLOR', default='#ffffff',
@@ -529,6 +541,9 @@ def main():
     if options.mode == 'debian':
         tree = debian.local_load(options)
     stat_line = human_si(sum(v.size for k,v in tree.items()))
+    if options.rip:
+        open('pacgraph.txt', 'w').write(repr(tree))
+        return
     if options.console:
         print 'Total size:', stat_line
         tops = toplevel_packs(tree)
@@ -550,7 +565,6 @@ def main():
         return
     if call('which svg2png') == 0:
         call('svg2png pacgraph.svg pacgraph.png')
-        #call('mogrify -background white -layers flatten pacgraph.png')
         return
     if call('which convert') == 0:
         call('convert pacgraph.svg pacgraph.png')
