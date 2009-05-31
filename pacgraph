@@ -25,9 +25,8 @@ class Node(object):
         #self.color   = ''      # "#ffffff"
         self.__dict__.update(kwargs)
     def __repr__(self):
-        return repr({'links'  : self.links, 
-                     'inverse': self.inverse,
-                     'size'   : self.size})
+        return repr({'links' : self.links, 
+                     'size'  : self.size})
     # cache the slowest of these?
     @property
     def all(self):
@@ -46,7 +45,7 @@ def unrip(path):
     "path -> dict of Nodes"
     text = ''.join(open(path))
     tree = eval(text)
-    return dict((p,Node(**n)) for p,n in tree.items())
+    return bilink_tree(dict((p,Node(**n)) for p,n in tree.items()))
 
 def l_part(n, c):
     return n.partition(c)[0]
@@ -550,7 +549,7 @@ def main():
         for s,n in ((s,n) for s,n in packs_by_size(tree) if n in tops):
             print human_si(s), n
         return
-    print 'Placing all packages'
+    print 'Placing %i nodes' % len(tree)
     tree = pt_sizes(tree, *options.point_size)
     packs = place(tree)
     tree = recenter(tree, all_points(tree))
