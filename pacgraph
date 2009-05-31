@@ -258,12 +258,11 @@ def biggest_packs(tree):
     packs = [(shared_size(p, tree), p) for p in tree]
     return [p for s,p in reversed(sorted(packs))]
 
-
 def toplevel_packs(tree):
     return set(p for p in tree if not tree[p].inverse)
 
-def packs_by_size(tree):
-    by_sizes = [(tree[n].size, n) for n in toplevel_packs(tree)]
+def packs_by_size(tree, pack_list):
+    by_sizes = [(tree[n].size, n) for n in pack_list]
     return reversed(sorted(by_sizes))
 
 def legal_links(tree):
@@ -546,7 +545,9 @@ def main():
     if options.console:
         print 'Total size:', stat_line
         tops = toplevel_packs(tree)
-        for s,n in ((s,n) for s,n in packs_by_size(tree) if n in tops):
+        if len(tops) == 1:
+            tops = tree.keys()
+        for s,n in packs_by_size(tree, tops):
             print human_si(s), n
         return
     print 'Placing %i nodes' % len(tree)
