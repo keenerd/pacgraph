@@ -559,7 +559,7 @@ def main():
     svgify(packs, options)
     if options.svg_only:
         return
-    print 'Rendering SVG'
+    print 'Rendering PNG'
     if call('which inkscape') == 0:
         call('inkscape -D -e pacgraph.png pacgraph.svg')
         return
