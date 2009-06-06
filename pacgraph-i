@@ -1,0 +1,104 @@
+#! /usr/bin/env python
+
+dev = False
+
+from Tkinter import *
+
+if not dev:
+    import imp
+    imp.load_source('pacgraph', '/usr/bin/pacgraph')
+import pacgraph
+
+color = {'sel' : '#000',
+         'uns' : '#888',
+         'dep' : '#008',
+         'req' : '#00F',
+         'bg'  : '#FFF',
+         'line': '#DDD'}
+
+class Motion(object):
+    def __init__(self):
+        self.x, self.y = None, None
+        self.scale = 1.0
+    def button_up(self, event):
+        self.x, self.y = None, None
+    def drag(self, event):
+        if None in (self.x, self.y):
+            self.x = event.x
+            self.y = event.y
+            return
+        dx = event.x - self.x
+        dy = event.y - self.y
+        for i in canvas.find_all():
+            canvas.move(i, dx, dy)
+        self.x = event.x
+        self.y = event.y
+    def zoom(self, event):
+        new_x = lambda x: int((x-event.x) * self.scale + event.x)
+        new_y = lambda y: int((y-event.y) * self.scale + event.y)
+        new_p = lambda p: str(max(1, int(p * 0.5 * self.scale)))
+        for i,p in lines_tk:
+            x1,y1,x2,y2 = p
+            canvas.coords(i, (new_x(x1), new_y(y1), 
+                              new_x(x2), new_y(y2)))
+        for n in tree:
+            x,y = tree[n].center
+            p = tree[n].font_pt
+            canvas.coords(tree[n].tk, (new_x(x),new_y(y)))
+            canvas.itemconfig(tree[n].tk, font=('Monospace', new_p(p)))
+    def zoom_in(self, event):
+        self.scale = min(2, self.scale*1.1)
+        self.zoom(event)
+    def zoom_out(self, event):
+        self.scale = max(0.1, self.scale*0.8)
+        self.zoom(event)
+
+def hilite(event, name, selected):
+    c_text = lambda n, c: canvas.itemconfig(tree[n].tk, fill=color[c])
+    if selected:
+        c_text(name, 'sel')
+        for l in tree[name].links:
+            c_text(l, 'dep')
+        for l in tree[name].inverse:
+            c_text(l, 'req')
+    else:
+        c_text(name, 'uns')
+        for l in tree[name].all:
+            c_text(l, 'uns')
+
+arch = pacgraph.Arch()
+print 'Loading local repo.'
+tree = arch.local_load(pacgraph.MockOptions())
+print 'Preparing %i nodes.' % len(tree)
+tree = pacgraph.pt_sizes(tree, 10, 100)
+tree = pacgraph.place(tree)
+print 'Hover, drag, and scroll to control.'
+
+root = Tk()
+canvas = Canvas(root, bg=color['bg'])
+canvas.pack(fill=BOTH)
+
+lines = pacgraph.all_links(tree)
+lines_tk = []
+for line in lines:
+    p = line[0] + line[1]
+    c = color['line']
+    lines_tk.append((canvas.create_line(p, fill=c), p))
+
+for name,info in tree.items():
+    tree[name].tk = canvas.create_text(
+            info.center[0], info.center[1], 
+            text=name, anchor=S, fill=color['uns'], 
+            font=('Monospace', str(info.font_pt/2)))
+    n = name
+    canvas.tag_bind(tree[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
+    canvas.tag_bind(tree[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
+
+motion = Motion()
+canvas.bind('<B1-Motion>', motion.drag)
+canvas.bind('<ButtonRelease-1>', motion.button_up)
+canvas.bind('<Button-4>', motion.zoom_in)
+canvas.bind('<Button-5>', motion.zoom_out)
+
+root.mainloop()
+

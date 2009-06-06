@@ -41,6 +41,10 @@ class Node(object):
     def cd(self):
         return [self.center, self.dim]
 
+class MockOptions(object):
+    def __init__(self):
+        self.opt_deps = False
+
 def unrip(path):
     "path -> dict of Nodes"
     text = ''.join(open(path))
@@ -430,7 +434,7 @@ def control_point(p1, p2, drop=None):
     lower  = (p1,p2)[p1[1]<p2[1]]
     higher = (p2,p1)[p1[1]<p2[1]]
     if drop is None:
-        drop = random.random()
+        drop = 0.5 + 0.5*random.random()
     return (lower[0]+higher[0])//2, lower[1]+dx*drop//2
 
 def quad_spline(p1, p2):
@@ -465,6 +469,14 @@ def window_size(points):
     xs,ys = zip(*points)
     return max(xs)-min(xs), max(ys)-min(ys)
 
+def all_links(packs):
+    paths = []
+    for pack in packs:
+        links = packs[pack].all
+        p1 = packs[pack].center
+        paths.extend((p1,packs[l].center) for l in links if l<pack)
+    return paths
+
 def svgify(packs, options):
     toplevel = toplevel_packs(packs)
     bottomlevel = set(packs) - toplevel
@@ -473,11 +485,7 @@ def svgify(packs, options):
     width,height = window_size(all_ps)
     text1 = [svg_text(p, packs[p].cd, packs[p].font_pt) for p in bottomlevel]
     text2 = [svg_text(p, packs[p].cd, packs[p].font_pt) for p in toplevel]
-    paths = []
-    for pack in packs:
-        links = packs[pack].all
-        p1 = packs[pack].center
-        paths.extend(svg_spline(p1,packs[l].center) for l in links if l<pack)
+    paths = [svg_spline(*line) for line in all_links(packs)]
     svg =  xml_wrap('rect', None, x=0, y=0, width=width, height=height, style='fill:%s;' % options.background)
     svg += xml_wrap('g', '\n'.join(paths), style='stroke:%s; stroke-opacity:0.15; fill:none;' % options.link)
     svg += xml_wrap('g', '\n'.join(text1), **{'font-family':'Monospace', 'fill':options.dependency})
