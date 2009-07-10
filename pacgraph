@@ -168,7 +168,7 @@ class Debian(object):
     
     def all_installed(self):
         stdout = self.call('dpkg --get-selections')
-        return [line.split()[0] for line in stdout if line.endswith('install')]
+        return [line.split()[0] for line in stdout if line.endswith('install') and not line.endswith('deinstall')]
     
     def pkg_info(self, name):
         stdout = self.call('dpkg -s %s' % name)
@@ -176,9 +176,9 @@ class Debian(object):
         size = int(size[0].split(' ')[1], 10) * 1024
         deps = [line for line in stdout if line.startswith('Depends:')]
         if deps:
-            deps = deps.partition(' ')[2]
-            deps = deps.split(',')
-            deps = [d.parition('(')[0] for d in deps]
+            deps = deps[0].partition(' ')[2]
+            deps = [d for e in deps.split(',') for d in e.split('|')]
+            deps = [d.partition('(')[0] for d in deps]
             deps = set(d.strip() for d in deps) - set([''])
         else:
             deps = set([])
@@ -195,7 +195,7 @@ class Debian(object):
     
     def local_load(self, options):
         tree = legal_links(self.load_tree())
-        tree = compress_chains(bilink_tree(trees))
+        tree = compress_chains(bilink_tree(tree))
         return legal_links(tree)
     
     def repo_load(self, options, packages=None):
