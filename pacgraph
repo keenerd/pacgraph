@@ -160,18 +160,14 @@ class Arch(object):
         return legal_links(bilink_tree(tree2))
 
 class Debian(object):
-    "Completely untested, a quick hack from reading docs."
-    def call(self, cmd):
-        "returns stdout"
-        subp = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE, shell=True)
-        return subp.communicate()[0].split('\n')
+    "Do not be alarmed if this runs very slowly."
     
     def all_installed(self):
-        stdout = self.call('dpkg --get-selections')
+        stdout = call_stdout('dpkg --get-selections')
         return [line.split()[0] for line in stdout if line.endswith('install') and not line.endswith('deinstall')]
     
     def pkg_info(self, name):
-        stdout = self.call('dpkg -s %s' % name)
+        stdout = call_stdout('dpkg -s %s' % name)
         size = [line for line in stdout if line.startswith('Installed-Size:')]
         size = int(size[0].split(' ')[1], 10) * 1024
         deps = [line for line in stdout if line.startswith('Depends:')]
@@ -203,24 +199,20 @@ class Debian(object):
         raise
 
 class Redhat(object):
-    "Completely untested, a quick hack from reading docs."
-    def call(self, cmd):
-        "returns stdout"
-        subp = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE, shell=True)
-        return subp.communicate()[0].split('\n')
+    "Do not be alarmed if this runs very slowly."
     
     def all_installed(self):
-        stdout = self.call('rpm --query --all')
+        stdout = call_stdout('rpm --query --all')
         return [line.split()[0] for line in stdout if line not in ['']]
     
     def pkg_info(self, name):
-        stdout = self.call('rpm --query --queryformat "%%{SIZE}\n" %s' % name)
+        stdout = call_stdout('rpm --query --queryformat "%%{SIZE}\n" %s' % name)
         size = int(stdout[0], 10)
-        requires = self.call('rpm --query --queryformat "[%%{REQUIRENAME}\n]" %s' % name)
+        requires = call_stdout('rpm --query --queryformat "[%%{REQUIRENAME}\n]" %s' % name)
         if requires:
             requires = [capability for capability in requires if capability not in [''] and '.so.' not in capability and '(' not in capability]
             requires = list(set(requires))
-            deps = [self.call('rpm --query --whatprovides %s' % capability)[0] for capability in requires]
+            deps = [call_stdout('rpm --query --whatprovides %s' % capability)[0] for capability in requires]
             deps = set(deps) - set([''])
         else:
             deps = set([])
@@ -535,9 +527,15 @@ def svgify(packs, options):
     svg = xml_wrap('svg', svg, width=width, height=height)
     open('pacgraph.svg', 'w').write(svg)
 
-def call(cmd):
+def call_status(cmd):
+    "returns exit status"
     spp = subprocess.PIPE
     return subprocess.Popen(cmd, shell=True, stdout=spp, stderr=spp).wait()
+
+def call_stdout(cmd):
+    "returns stdout"
+    subp = subprocess.Popen(cmd, shell=True, stdin=None, stdout=subprocess.PIPE)
+    return subp.communicate()[0].split('\n')
 
 def parse():
     default_action = 'arch'
@@ -575,7 +573,7 @@ def parse():
 def human_si(number):
     powers = [(2**15,''), (2**25,'k'), (2**35,'M'), (2**45,'G')]
     limit,si = [p for p in powers if p[0] > number][0]
-    return str(number//(limit//2**15)) + si +'b'
+    return str(number//(limit//2**15)) + si +'B'
 
 def main():
     arch = Arch()
@@ -613,17 +611,18 @@ def main():
     if options.svg_only:
         return
     print 'Rendering PNG'
-    if call('which inkscape') == 0:
-        call('inkscape -D -e pacgraph.png pacgraph.svg')
+    if call_status('which inkscape') == 0:
+        call_status('inkscape -D -e pacgraph.png pacgraph.svg')
         return
-    if call('which svg2png') == 0:
-        call('svg2png pacgraph.svg pacgraph.png')
+    if call_status('which svg2png') == 0:
+        call_status('svg2png pacgraph.svg pacgraph.png')
         return
-    if call('which convert') == 0:
-        call('convert pacgraph.svg pacgraph.png')
+    if call_status('which convert') == 0:
+        call_status('convert pacgraph.svg pacgraph.png')
         return
     print 'No way to convert SVG to PNG.'
     print 'Inkscape, svg2png or imagemagick would be nice.'
+    print 'Alternatives: "pacgraph-i" or "pacgraph --console".'
 
 if __name__ == "__main__":
     main()
