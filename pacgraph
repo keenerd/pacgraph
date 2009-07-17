@@ -202,6 +202,48 @@ class Debian(object):
         print 'not implemented'
         raise
 
+class Redhat(object):
+    "Completely untested, a quick hack from reading docs."
+    def call(self, cmd):
+        "returns stdout"
+        subp = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE, shell=True)
+        return subp.communicate()[0].split('\n')
+    
+    def all_installed(self):
+        stdout = self.call('rpm --query --all')
+        return [line.split()[0] for line in stdout if line not in ['']]
+    
+    def pkg_info(self, name):
+        stdout = self.call('rpm --query --queryformat "%%{SIZE}\n" %s' % name)
+        size = int(stdout[0], 10)
+        requires = self.call('rpm --query --queryformat "[%%{REQUIRENAME}\n]" %s' % name)
+        if requires:
+            requires = [capability for capability in requires if capability not in [''] and '.so.' not in capability and '(' not in capability]
+            requires = list(set(requires))
+            deps = [self.call('rpm --query --whatprovides %s' % capability)[0] for capability in requires]
+            deps = set(deps) - set([''])
+        else:
+            deps = set([])
+        return Node(name=name, links=deps, size=size)
+    
+    def load_tree(self):
+        tree = {}
+	for p in self.all_installed():
+            try:
+                tree[p] = self.pkg_info(p)
+            except:
+                print 'Error reading package', p
+        return tree
+    
+    def local_load(self, options):
+        tree = legal_links(self.load_tree())
+        tree = compress_chains(bilink_tree(tree))
+        return legal_links(tree)
+    
+    def repo_load(self, options, packages=None):
+        print 'not implemented'
+        raise
+
 def full_deps(package, tree):
     "returns every package in dep tree"
     deps = set()
@@ -223,7 +265,7 @@ def bilink_tree(tree):
     return tree
 
 def flatten(list_of_lists):
-    return list(chain.from_iterable(list_of_lists))
+    return list(chain(*list_of_lists))
 
 def single_depends(tree):
     return (p for p in tree if len(tree[p].inverse) == 1)
@@ -524,7 +566,7 @@ def parse():
 
     beta = optparse.OptionGroup(parser, "Experimental Options")
     beta.add_option('-m', '--mode', dest='mode', default=default_action,
-            help='Curently supported modes are arch, arch-repo (buggy) and debian (buggy).  Default is %s.' % default_action)
+            help='Curently supported modes are arch, arch-repo (buggy), debian (buggy), and redhat (buggy).  Default is %s.' % default_action)
     parser.add_option_group(beta)
     
     options, args = parser.parse_args()
@@ -538,6 +580,7 @@ def human_si(number):
 def main():
     arch = Arch()
     debian = Debian()
+    redhat = Redhat()
     options, args = parse()
     print 'Loading package info'
     if options.mode == 'arch':
@@ -546,6 +589,8 @@ def main():
         tree = arch.repo_load(options, args)
     if options.mode == 'debian':
         tree = debian.local_load(options)
+    if options.mode == 'redhat':
+        tree = redhat.local_load(options)
     stat_line = human_si(sum(v.size for k,v in tree.items()))
     if options.rip:
         open('pacgraph.txt', 'w').write(repr(tree))
