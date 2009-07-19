@@ -22,7 +22,7 @@ class Node(object):
         self.font_pt = 0       # scaled from size
         self.center  = (0,0)   # (x,y)
         #self.dim     = (0,0)   # (w,h)
-        #self.color   = ''      # "#ffffff"
+        self.color   = '#000000'
         self.__dict__.update(kwargs)
     def __repr__(self):
         return repr({'links' : self.links, 
@@ -479,9 +479,10 @@ def quad_spline(p1, p2):
     c = control_point(p1, p2)
     return 'M%i,%i Q%i,%i %i,%i' % (p1+c+p2)
 
-def svg_text(text, center_dim, pt):
+def svg_text(text, center_dim, pt, color):
+    # should acceppt Node directly
     p = offset_coord(*center_dim)
-    kw = {'x':p[0], 'y':p[1], 'font-size':pt}
+    kw = {'x':p[0], 'y':p[1], 'font-size':pt, 'fill':color}
     return xml_wrap('text', text, **kw) 
 
 def svg_spline(point1, point2):
@@ -517,16 +518,30 @@ def all_links(packs):
 def svgify(packs, options):
     toplevel = toplevel_packs(packs)
     bottomlevel = set(packs) - toplevel
+    needs, needed_by = [], []
+    #if options.highlight:
+    #    needs     = full_deps(options.highlight, packs, reverse=False)
+    #    needed_by = full_deps(options.highlight, packs, reverse=True)
     all_ps = all_points(packs)
     packs = recenter(packs, all_ps)
     width,height = window_size(all_ps)
-    text1 = [svg_text(p, packs[p].cd, packs[p].font_pt) for p in bottomlevel]
-    text2 = [svg_text(p, packs[p].cd, packs[p].font_pt) for p in toplevel]
+    for pack,node in packs.iteritems():
+        # replace with a lookup structure
+        if pack in bottomlevel:
+            node.color = options.dependency
+        if pack in toplevel:
+            node.color = options.toplevel
+        #if pack == options.highlight:
+        #    node.color = options.highlight_colors[0]
+        if pack in needed_by:
+            node.color = options.highlight_colors[1]
+        if pack in needs:
+            node.color = options.highlight_colors[2]
+    texts = [svg_text(p, packs[p].cd, packs[p].font_pt, packs[p].color) for p in packs]
     paths = [svg_spline(*line) for line in all_links(packs)]
     svg =  xml_wrap('rect', None, x=0, y=0, width=width, height=height, style='fill:%s;' % options.background)
     svg += xml_wrap('g', '\n'.join(paths), style='stroke:%s; stroke-opacity:0.15; fill:none;' % options.link)
-    svg += xml_wrap('g', '\n'.join(text1), **{'font-family':'Monospace', 'fill':options.dependency})
-    svg += xml_wrap('g', '\n'.join(text2), **{'font-family':'Monospace', 'fill':options.toplevel})
+    svg += xml_wrap('g', '\n'.join(texts), **{'font-family':'Monospace'})
     svg = xml_wrap('svg', svg, width=width, height=height)
     open('pacgraph.svg', 'w').write(svg)
 
@@ -606,11 +621,11 @@ def main():
         return
     print 'Placing %i nodes' % len(tree)
     tree = pt_sizes(tree, *options.point_size)
-    packs = place(tree)
+    tree = place(tree)
     tree = recenter(tree, all_points(tree))
     tree[stat_line] = Node(name=stat_line, font_pt=sum(options.point_size)//2)
     print 'Saving SVG'
-    svgify(packs, options)
+    svgify(tree, options)
     if options.svg_only:
         return
     print 'Rendering PNG'
