@@ -525,7 +525,8 @@ def svgify(packs, options):
     packs = recenter(packs, all_ps)
     width,height = window_size(all_ps)
     for pack,node in packs.iteritems():
-        # replace with a lookup structure
+        # replace with a lookup structure of some sort
+        # { test_fn(): 'color', ... }?  [ ('grouping', pack_set, 'color'), ... ]?
         if pack in bottomlevel:
             node.color = options.dependency
         if pack in toplevel:
