@@ -236,7 +236,7 @@ class Redhat(object):
         print 'not implemented'
         raise
 
-def full_deps(package, tree):
+def full_deps(package, tree, reverse=False):
     "returns every package in dep tree"
     deps = set()
     to_crawl = deque([package])
@@ -245,7 +245,10 @@ def full_deps(package, tree):
         if current in deps:
             continue
         deps.add(current)
-        current_deps = tree[current].links
+        if not reverse:
+            current_deps = tree[current].links
+        else:
+            current_deps = tree[current].inverse
         to_crawl.extend(current_deps - deps)
     return list(deps)
 
