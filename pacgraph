@@ -450,7 +450,8 @@ def place(packs):
         #print 'placing', name, 'around', origin_name
         origin = packs[origin_name].center
         heading = xy2rad(*link_pull(name, origin_name, packs))
-        scale = len(packs[name].all)+1  # more links need more room
+        # unplaced links will need more room
+        scale = len(packs[name].all-set(pri[:pri.index(name)]))+1
         b_list = all_bboxes(name, packs, pri)
         r = search(packs[name].cd, origin, heading, scale, b_list)
         packs[name].center = pol2xy(origin, heading, r)
