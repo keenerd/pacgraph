@@ -160,33 +160,35 @@ class Arch(object):
         return legal_links(bilink_tree(tree2))
 
 class Debian(object):
-    "Do not be alarmed if this runs very slowly."
-    
-    def all_installed(self):
-        stdout = call_stdout('dpkg --get-selections')
-        return [line.split()[0] for line in stdout if line.endswith('install') and not line.endswith('deinstall')]
-    
-    def pkg_info(self, name):
-        stdout = call_stdout('dpkg -s %s' % name)
-        size = [line for line in stdout if line.startswith('Installed-Size:')]
-        size = int(size[0].split(' ')[1], 10) * 1024
-        deps = [line for line in stdout if line.startswith('Depends:')]
-        if deps:
-            deps = deps[0].partition(' ')[2]
-            deps = [d for e in deps.split(',') for d in e.split('|')]
-            deps = [d.partition('(')[0] for d in deps]
-            deps = set(d.strip() for d in deps) - set([''])
-        else:
-            deps = set([])
-        return Node(name=name, links=deps, size=size)
+    "Expect lots of 'error: unknown' messages. May be due to pseudo-dependencies being filled by 'Provides:' entries."
     
     def load_tree(self):
+        "New implementation not extensively tested, your mileage may vary"
         tree = {}
-	for p in self.all_installed():
-            try:
-                tree[p] = self.pkg_info(p)
-            except:
-                print 'Error reading package', p
+        installed = False
+        deps = set([])
+        name = ''
+        size = 0
+        file = open('/var/lib/dpkg/status', 'r')
+        for line in file:
+            if line.startswith('Package:'):
+                name = line.split(':')[1].strip()
+            elif line.startswith('Status'):
+                installed = 'install ok installed' in line
+            elif line.startswith('Installed-Size:'):
+                size = int(line.split(':')[1].strip(), 10) * 1024
+            elif line.startswith('Depends:'):
+                deps = line.partition(':')[2]
+                deps = [d for e in deps.split(',') for d in e.split('|')]
+                deps = [d.partition('(')[0].strip() for d in deps]
+                deps = set(deps) - set('')
+            elif line == '\n' and installed and name and size:
+                tree[name] = Node(name = name, links = deps, size = size)
+                installed = False
+                deps = set([])
+                name = ''
+                size = 0
+        file.close()
         return tree
     
     def local_load(self, options):
