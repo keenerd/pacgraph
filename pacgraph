@@ -201,32 +201,37 @@ class Debian(object):
         raise
 
 class Redhat(object):
-    "Do not be alarmed if this runs very slowly."
-    
-    def all_installed(self):
-        stdout = call_stdout('rpm --query --all')
-        return [line.split()[0] for line in stdout if line not in ['']]
-    
-    def pkg_info(self, name):
-        stdout = call_stdout('rpm --query --queryformat "%%{SIZE}\n" %s' % name)
-        size = int(stdout[0], 10)
-        requires = call_stdout('rpm --query --queryformat "[%%{REQUIRENAME}\n]" %s' % name)
-        if requires:
-            requires = [capability for capability in requires if capability not in [''] and '.so.' not in capability and '(' not in capability]
-            requires = list(set(requires))
-            deps = [call_stdout('rpm --query --whatprovides %s' % capability)[0] for capability in requires]
-            deps = set(deps) - set([''])
-        else:
-            deps = set([])
-        return Node(name=name, links=deps, size=size)
+    "RPM uses a capability/provider model. load_tree() has room for improvement"
     
     def load_tree(self):
+        stdout = call_stdout('rpm --query --all --queryformat "%{NAME}<(^_^)>%{SIZE}<(^_^)>[%{REQUIRENAME}, ]<(^_^)>[%{PROVIDENAME}, ]\n"')
         tree = {}
-	for p in self.all_installed():
-            try:
-                tree[p] = self.pkg_info(p)
-            except:
-                print 'Error reading package', p
+        requirer_lookup = {}
+        provider_lookup = {}
+        for line in stdout:
+            if line == '':
+                break
+            name,nullo,line = line.partition('<(^_^)>')
+            size,nullo,line = line.partition('<(^_^)>')
+            size = int(size, 10)
+            requires,nullo,provides = line.partition('<(^_^)>')
+            requires = set([capability.strip() for capability in requires.split(',')]) - set([''])
+            for capability in requires:
+                if capability not in requirer_lookup:
+                    requirer_lookup[capability] = set([])
+                requirer_lookup[capability] |= set([name])
+            provides = set([capability.strip() for capability in provides.split(',')]) - set([''])
+            for capability in provides:
+                if capability not in provider_lookup:
+                    provider_lookup[capability] = set([])
+                provider_lookup[capability] |= set([name])
+            if name in tree:
+                tree[name].size += size
+            else:
+                tree[name] = Node(name = name, links = set([]), size = size)
+        for capability in set(requirer_lookup) & set(provider_lookup):
+            for package in requirer_lookup[capability]:
+                tree[package].links |= provider_lookup[capability]
         return tree
     
     def local_load(self, options):
