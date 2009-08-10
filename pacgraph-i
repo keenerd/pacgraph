@@ -3,6 +3,7 @@
 dev = False
 
 from Tkinter import *
+import threading, Queue
 
 if not dev:
     import imp
@@ -85,50 +86,53 @@ def hilite(event, name, selected):
         for l in tree[name].all:
             color_text(l, 'uns')
 
-arch = pacgraph.Arch()
-print 'Loading local repo.'
-tree = arch.local_load(pacgraph.MockOptions())
-print 'Preparing %i nodes.' % len(tree)
-tree = pacgraph.pt_sizes(tree, 10, 100)
-tree = pacgraph.place(tree)
-print 'Hover, drag, scroll and type to control.'
+def main():
+    global canvas, tree
+    arch = pacgraph.Arch()
+    print 'Loading local repo.'
+    tree = arch.local_load(pacgraph.MockOptions())
+    print 'Preparing %i nodes.' % len(tree)
+    tree = pacgraph.pt_sizes(tree, 10, 100)
+    tree = pacgraph.place(tree)
+    print 'Hover, drag, scroll and type to control.'
+    
+    root = Tk()
+    canvas = Canvas(root, bg=colors['bg'])
+    canvas.pack(expand=1, fill=BOTH)
+    canvas.tk_focusFollowsMouse()
+    
+    lines = pacgraph.all_links(tree)
+    lines_tk = []
+    for line in lines:
+        p = line[0] + line[1]
+        c = colors['line']
+        l = Container()
+        l.p1 = line[0]
+        l.p2 = line[1]
+        l.tk = canvas.create_line(p, fill=c)
+        lines_tk.append(l)
+    
+    for name,info in tree.items():
+        p = info.font_pt
+        tree[name].tk = canvas.create_text(
+                info.center[0], info.center[1]+p//4, 
+                text=name, anchor=S, fill=colors['uns'], 
+                font=('Monospace', str(p//2)))
+        n = name
+        canvas.tag_bind(tree[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
+        canvas.tag_bind(tree[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
+    
+    motion = Motion()
+    canvas.bind('<B1-Motion>', motion.drag)
+    canvas.bind('<ButtonRelease-1>', motion.button_up)
+    canvas.bind('<B2-Motion>', motion.drag)
+    canvas.bind('<ButtonRelease-2>', motion.button_up)
+    canvas.bind('<B3-Motion>', motion.drag)
+    canvas.bind('<ButtonRelease-3>', motion.button_up)
+    canvas.bind('<Button-4>', motion.zoom_in)
+    canvas.bind('<Button-5>', motion.zoom_out)
+    canvas.bind('<Key>', motion.search)
+    
+    root.mainloop()
 
-root = Tk()
-canvas = Canvas(root, bg=colors['bg'])
-canvas.pack(expand=1, fill=BOTH)
-canvas.tk_focusFollowsMouse()
-
-lines = pacgraph.all_links(tree)
-lines_tk = []
-for line in lines:
-    p = line[0] + line[1]
-    c = colors['line']
-    l = Container()
-    l.p1 = line[0]
-    l.p2 = line[1]
-    l.tk = canvas.create_line(p, fill=c)
-    lines_tk.append(l)
-
-for name,info in tree.items():
-    p = info.font_pt
-    tree[name].tk = canvas.create_text(
-            info.center[0], info.center[1]+p//4, 
-            text=name, anchor=S, fill=colors['uns'], 
-            font=('Monospace', str(p//2)))
-    n = name
-    canvas.tag_bind(tree[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
-    canvas.tag_bind(tree[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
-
-motion = Motion()
-canvas.bind('<B1-Motion>', motion.drag)
-canvas.bind('<ButtonRelease-1>', motion.button_up)
-canvas.bind('<B2-Motion>', motion.drag)
-canvas.bind('<ButtonRelease-2>', motion.button_up)
-canvas.bind('<B3-Motion>', motion.drag)
-canvas.bind('<ButtonRelease-3>', motion.button_up)
-canvas.bind('<Button-4>', motion.zoom_in)
-canvas.bind('<Button-5>', motion.zoom_out)
-canvas.bind('<Key>', motion.search)
-
-root.mainloop()
-
+main()

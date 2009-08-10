@@ -8,7 +8,7 @@ url="http://kmkeen.com/pacgraph/"
 license=('GPL')
 depends=('python')
 makedepends=()
-optdepends=('inkscape' 'imagemagick' 'svg2png', 'tk')
+optdepends=('inkscape' 'imagemagick' 'svg2png' 'tk')
 source=(http://kmkeen.com/pacgraph/$pkgname-$pkgver.tar.gz)
 md5sums=('f91d930b22a75c8900c7539d09e0fa7e')
 

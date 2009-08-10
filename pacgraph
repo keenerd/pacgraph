@@ -409,11 +409,12 @@ def link_pull(name, origin_n, packs):
 
 def xy2rad(x,y):
     "adds some wiggle so things are less spindly"
+    # no longer needed?
     if (x,y) == (0,0):
         return ran_rad()
-    wiggle = 0.35  # radians
-    wiggle = random.random()*wiggle - wiggle/2.0
-    return math.atan2(y,x) + wiggle
+    #wiggle = 0  # radians
+    #wiggle = random.random()*wiggle - wiggle/2.0
+    return math.atan2(y,x) #+ wiggle
 
 def pol2xy(o,a,r):
     return int(o[0]+r*math.cos(a)), int(o[1]+r*math.sin(a))
