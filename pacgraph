@@ -15,14 +15,15 @@ pj = os.path.join
 
 class Node(object):
     def __init__(self, **kwargs):
-        self.name    = ''      # matches dict key
-        self.links   = set([]) # of name strings
-        self.inverse = set([]) # of name strings
-        self.size    = 0       # bytes, usually
-        self.font_pt = 0       # scaled from size
-        self.center  = (0,0)   # (x,y)
-        #self.dim     = (0,0)   # (w,h)
-        self.color   = '#000000'
+        self.name     = ''      # matches dict key
+        self.links    = set([]) # of name strings
+        self.inverse  = set([]) # of name strings
+        self.size     = 0       # bytes, usually
+        self.font_pt  = 0       # scaled from size
+        self.explicit = False   # True if explicitely installed package
+        self.center   = (0,0)   # (x,y)
+        #self.dim      = (0,0)   # (w,h)
+        self.color    = '#000000'
         self.__dict__.update(kwargs)
     def __repr__(self):
         return repr({'links' : self.links, 
@@ -78,7 +79,7 @@ class Arch(object):
         return info
     
     def strip_info(self, info):
-        keep = ['DEPENDS', 'OPTDEPENDS', 'PROVIDES', 'SIZE', 'ISIZE']
+        keep = ['DEPENDS', 'OPTDEPENDS', 'PROVIDES', 'SIZE', 'ISIZE', 'REASON']
         info = dict((k.strip('%'),v) for k,v in info.items())
         name = info['NAME'][0]
         info = dict((k,v) for k,v in info.items() if k in keep)
@@ -88,6 +89,10 @@ class Arch(object):
             info['SIZE'] = int(info['SIZE'][0], 10)
         else:
             info['SIZE'] = 0
+        if 'REASON' in info:
+            info['REASON'] = info['REASON'] == '1'
+        else:
+            info['REASON'] = False
         return name, info
     
     def load_tree(self, dirs):
@@ -134,18 +139,17 @@ class Arch(object):
         tree2 = {}
         actually_installed = self.actually_installed_fn(tree)
         # merge
-        for p in tree:
-            tp = defaultdict(list, tree[p])
+        for p,info in tree.iteritems():
+            tp = defaultdict(list, info)
             deps = tp['DEPENDS']
             if options.opt_deps:
                 deps += tp['OPTDEPENDS']
             # remove unused optdeps
             deps = actually_installed(deps)
-            tree2[p] = Node(name=p, size=tree[p]['SIZE'], links=set(deps))
+            tree2[p] = Node(name=p, size=info['SIZE'], links=set(deps), explicit=info['REASON'])
         return tree2
     
     def local_load(self):
-        options, args = parse()
         dirs = ['/var/lib/pacman/local/']
         tree = compress_chains(bilink_tree(self.merge_tree(self.load_tree(dirs))))
         return legal_links(tree)
@@ -273,13 +277,17 @@ def bilink_tree(tree):
 def flatten(list_of_lists):
     return list(chain(*list_of_lists))
 
-def single_depends(tree):
-    return (p for p in tree if len(tree[p].inverse) == 1)
+def single_depends(tree, preserve_explicit=False):
+    if preserve_explicit:
+        return (p for p in tree if len(tree[p].inverse) == 1 and not tree[p].explicit)
+    else:
+        return (p for p in tree if len(tree[p].inverse) == 1)
 
 def compress_chains(tree):
     "single depends are absorbed into parent"
+    options, args = parse()
     while True:
-        singles = single_depends(tree)
+        singles = single_depends(tree, options.preserve_explicit)
         try:
             s = singles.next()
         except StopIteration:
@@ -577,6 +585,8 @@ def parse():
             help='Produce the SVG but do not attempt to rasterize it.')
     parser.add_option('-o', '--opt-deps', dest='opt_deps', action='store_true', default=False,
             help='Include optional dependencies.  May produce a less compact graph.')
+    parser.add_option('-e', '--explicits', dest='preserve_explicit', action='store_true', default=False,
+            help='Preserve explicitly installed applications from dependency compression.  May produce a less compact graph.')
     parser.add_option('-c', '--console', dest='console', action='store_true', default=False,
             help='Print summary to console, does not draw a graph.  Good for very slow computers.')
     parser.add_option('-r', '--rip', dest='rip', action='store_true', default=False,
