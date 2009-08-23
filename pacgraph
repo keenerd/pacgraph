@@ -22,7 +22,6 @@ class Node(object):
         self.font_pt  = 0       # scaled from size
         self.explicit = False   # True if explicitely installed package
         self.center   = (0,0)   # (x,y)
-        #self.dim      = (0,0)   # (w,h)
         self.color    = '#000000'
         self.__dict__.update(kwargs)
     def __repr__(self):
@@ -286,6 +285,8 @@ def single_depends(tree, preserve_explicit=False):
 def compress_chains(tree):
     "single depends are absorbed into parent"
     options, args = parse()
+    if not options.use_compression:
+        return tree
     while True:
         singles = single_depends(tree, options.preserve_explicit)
         try:
@@ -611,6 +612,8 @@ def parse():
     beta = optparse.OptionGroup(parser, "Experimental Options")
     beta.add_option('-m', '--mode', dest='mode', default=default_action,
             help='Curently supported modes are arch, arch-repo (buggy), debian (buggy), and redhat (buggy).  Default is %s.' % default_action)
+    beta.add_option('-n', '--no-compression', dest='use_compression', action='store_false', default=True,
+            help='Disable all chain compression.')
     parser.add_option_group(beta)
     
     options, args = parser.parse_args()
