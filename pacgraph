@@ -128,8 +128,9 @@ class Arch(object):
             return list(installed)
         return actually
     
-    def merge_tree(self, tree, options):
+    def merge_tree(self, tree):
         "merge provides, depends, optdepends"
+        options, args = parse()
         tree2 = {}
         actually_installed = self.actually_installed_fn(tree)
         # merge
@@ -143,16 +144,19 @@ class Arch(object):
             tree2[p] = Node(name=p, size=tree[p]['SIZE'], links=set(deps))
         return tree2
     
-    def local_load(self, options):
+    def local_load(self):
+        options, args = parse()
         dirs = ['/var/lib/pacman/local/']
-        tree = compress_chains(bilink_tree(self.merge_tree(self.load_tree(dirs), options)))
+        tree = compress_chains(bilink_tree(self.merge_tree(self.load_tree(dirs))))
         return legal_links(tree)
     
-    def repo_load(self, options, packages=None):
+    def repo_load(self):
+        options, args = parse()
+        packages = args
         dirs = ['/var/lib/pacman/sync/community/',
                 '/var/lib/pacman/sync/core/',
                 '/var/lib/pacman/sync/extra/']
-        tree = self.merge_tree(self.load_tree(dirs), options)
+        tree = self.merge_tree(self.load_tree(dirs))
         if not packages:
             return legal_links(compress_chains(bilink_tree(tree)))
         deps = [d for p in packages for d in full_deps(p, tree)]
@@ -191,12 +195,12 @@ class Debian(object):
         file.close()
         return tree
     
-    def local_load(self, options):
+    def local_load(self):
         tree = legal_links(self.load_tree())
         tree = compress_chains(bilink_tree(tree))
         return legal_links(tree)
     
-    def repo_load(self, options, packages=None):
+    def repo_load(self):
         print 'not implemented'
         raise
 
@@ -234,12 +238,12 @@ class Redhat(object):
                 tree[package].links |= provider_lookup[capability]
         return tree
     
-    def local_load(self, options):
+    def local_load(self):
         tree = legal_links(self.load_tree())
         tree = compress_chains(bilink_tree(tree))
         return legal_links(tree)
     
-    def repo_load(self, options, packages=None):
+    def repo_load(self):
         print 'not implemented'
         raise
 
@@ -523,7 +527,8 @@ def all_links(packs):
         paths.extend((p1,packs[l].center) for l in links if l<pack)
     return paths
 
-def svgify(packs, options, args):
+def svgify(packs):
+    options, args = parse()
     toplevel = toplevel_packs(packs)
     bottomlevel = set(packs) - toplevel
     needs, needed_by = [], []
@@ -613,13 +618,13 @@ def main():
     options, args = parse()
     print 'Loading package info'
     if options.mode == 'arch':
-        tree = arch.local_load(options)
+        tree = arch.local_load()
     if options.mode == 'arch-repo':
-        tree = arch.repo_load(options, args)
+        tree = arch.repo_load()
     if options.mode == 'debian':
-        tree = debian.local_load(options)
+        tree = debian.local_load()
     if options.mode == 'redhat':
-        tree = redhat.local_load(options)
+        tree = redhat.local_load()
     stat_line = human_si(sum(v.size for k,v in tree.items()))
     if options.rip:
         open('pacgraph.txt', 'w').write(repr(tree))
@@ -638,7 +643,7 @@ def main():
     tree = recenter(tree, all_points(tree))
     tree[stat_line] = Node(name=stat_line, font_pt=sum(options.point_size)//2)
     print 'Saving SVG'
-    svgify(tree, options, args)
+    svgify(tree)
     if options.svg_only:
         return
     print 'Rendering PNG'
