@@ -250,6 +250,31 @@ class Redhat(object):
         print 'not implemented'
         raise
 
+class Textfile(object):
+    """ VERY ALPHA, frequent to change!
+    loads a space delineated text file
+    file should be first argument, each line looks like
+    node_name size link1 link2 link3 ..."""
+    def load_tree(self):
+        options, args = parse()
+        tree = {}
+        if len(args) < 1:
+            print 'need file to load'
+            raise
+        for line in open(args[0]).readlines():
+            words = line.split()
+            node = words[0]
+            size = float(words[1])
+            links = words[2:]
+            tree[node] = Node(name=node, size=size, links=set(links))
+        return tree
+
+    def local_load(self):
+        tree = legal_links(self.load_tree())
+        tree = compress_chains(bilink_tree(tree))
+        return legal_links(tree)
+
+
 def full_deps(package, tree, reverse=False):
     "returns every package in dep tree"
     deps = set()
@@ -628,6 +653,7 @@ def main():
     arch = Arch()
     debian = Debian()
     redhat = Redhat()
+    textfile = TextFile()
     options, args = parse()
     print 'Loading package info'
     if options.mode == 'arch':
@@ -638,6 +664,8 @@ def main():
         tree = debian.local_load()
     if options.mode == 'redhat':
         tree = redhat.local_load()
+    if options.mode == 'textfile':
+        tree = textfile.local_load()
     stat_line = human_si(sum(v.size for k,v in tree.items()))
     if options.rip:
         open('pacgraph.txt', 'w').write(repr(tree))
