@@ -253,15 +253,12 @@ class Redhat(object):
 class Textfile(object):
     """ VERY ALPHA, frequent to change!
     loads a space delineated text file
-    file should be first argument, each line looks like
+    file should be named "data", each line looks like
     node_name size link1 link2 link3 ..."""
     def load_tree(self):
-        options, args = parse()
         tree = {}
-        if len(args) < 1:
-            print 'need file to load'
-            raise
-        for line in open(args[0]).readlines():
+        filename = 'data'
+        for line in open(filename).readlines():
             words = line.split()
             node = words[0]
             size = float(words[1])
@@ -326,6 +323,7 @@ def compress_chains(tree):
             continue
         #print 'merge', s, 'into', parent
         tree[parent].size += tree[s].size
+        #tree[parent].name += ' ' + tree[s].name
         for dep in tree[s].links:
             tree[dep].inverse.remove(s)
             tree[dep].inverse.add(parent)
@@ -653,7 +651,7 @@ def main():
     arch = Arch()
     debian = Debian()
     redhat = Redhat()
-    textfile = TextFile()
+    textfile = Textfile()
     options, args = parse()
     print 'Loading package info'
     if options.mode == 'arch':
