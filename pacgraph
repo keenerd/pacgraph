@@ -686,14 +686,17 @@ def main():
     if options.svg_only:
         return
     print 'Rendering PNG'
-    if call_status('which inkscape') == 0:
-        call_status('inkscape -D -e pacgraph.png pacgraph.svg')
-        return
-    if call_status('which svg2png') == 0:
-        call_status('svg2png pacgraph.svg pacgraph.png')
-        return
-    if call_status('which convert') == 0:
-        call_status('convert pacgraph.svg pacgraph.png')
+    png_conversion = ['inkscape -D -e pacgraph.png pacgraph.svg',
+                      'svg2png pacgraph.svg pacgraph.png',
+                      'convert pacgraph.svg pacgraph.png']
+    for cmd_line in png_conversion:
+        app = cmd_line.split()[0]
+        if call_status('which %s' % app) != 0:
+            continue
+        call_status(cmd_line)
+        if call_status('which optipng') == 0:
+            print 'Optimizing PNG'
+            call_status('optipng pacgraph.png')
         return
     print 'No way to convert SVG to PNG.'
     print 'Inkscape, svg2png or imagemagick would be nice.'
