@@ -184,7 +184,7 @@ class Debian(object):
                 name = line.split(':')[1].strip()
             elif line.startswith('Status'):
                 installed = ('install ok installed' in line) or ('install user installed' in line)
-            elif line.startswith('Installed-Size:'):
+            elif line.startswith('Installed-Size:') or line.startswith('Size:'):
                 size = int(line.split(':')[1].strip(), 10) * 1024
             elif line.startswith('Depends:'):
                 deps = line.partition(':')[2]
