@@ -3,7 +3,7 @@
 dev = False
 
 from Tkinter import *
-import threading, Queue
+import sys, threading, Queue
 
 if not dev:
     import imp
@@ -89,8 +89,12 @@ def hilite(event, name, selected):
 def main():
     global canvas, tree
     arch = pacgraph.Arch()
-    print 'Loading local repo.'
-    tree = arch.local_load(pacgraph.MockOptions())
+    if len(sys.argv) == 1:
+        print 'Loading local repo.'
+        tree = arch.local_load()
+    else:
+        print 'Loading repository.'
+        tree = arch.repo_load()
     print 'Preparing %i nodes.' % len(tree)
     tree = pacgraph.pt_sizes(tree, 10, 100)
     tree = pacgraph.place(tree)

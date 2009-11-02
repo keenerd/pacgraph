@@ -124,7 +124,7 @@ class Arch(object):
                     continue
                 provides = sorted(p for p in p_tree if pack in p_tree[p])
                 if len(provides) > 1:
-                    print 'error: %s found in %s, assuming %s' % (pack, provides, provides[0])
+                    print 'warning: %s found in %s, assuming %s' % (pack, provides, provides[0])
                     errors[pack] = provides[0]
                 if len(provides) >= 1:
                     installed.add(provides[0])
