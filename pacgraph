@@ -252,6 +252,25 @@ class Redhat(object):
         print 'not implemented'
         raise
 
+class Crux(object):
+    "based entirely on docs, needs to be tested"
+    def find_all(self, package):
+        raw = call_stdout('pkginfo -i')
+        for line in raw.split('\n'):
+            yield line.split(' ')[0]
+    def find_size(self, package):
+        return call_stdout('pkgsize %s' % package)
+    def find_deps(self, package):
+        return call_stdout('finddeps %s' % package)
+    def local_load(self):
+        tree = {}
+        all_packages = []
+        for name in all_packages:
+            size = self.find_size(name)
+            deps = self.find_deps(name)
+            tree[node] = Node(name=name, size=size, links=set(deps))
+        return tree
+
 class Textfile(object):
     """ VERY ALPHA, frequent to change!
     loads a space delineated text file
