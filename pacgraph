@@ -580,7 +580,7 @@ def all_links(packs):
         paths.extend((p1,packs[l].center) for l in links if l<pack)
     return paths
 
-def svgify(packs, filename):
+def svgify(packs):
     options, args = parse()
     toplevel = toplevel_packs(packs)
     bottomlevel = set(packs) - toplevel
@@ -611,7 +611,8 @@ def svgify(packs, filename):
     svg += xml_wrap('g', '\n'.join(paths), style='stroke:%s; stroke-opacity:0.15; fill:none;' % options.link)
     svg += xml_wrap('g', '\n'.join(texts), **{'font-family':'Monospace'})
     svg = xml_wrap('svg', svg, width=width, height=height)
-    open(filename+'.svg', 'w').write(svg)
+    filename = os.path.expanduser(options.filename)
+    open(filename + '.svg', 'w').write(svg)
 
 def call_status(cmd):
     "returns exit status"
@@ -636,8 +637,8 @@ def parse():
             help='Print summary to console, does not draw a graph.  Good for very slow computers.')
     parser.add_option('-r', '--rip', dest='rip', action='store_true', default=False,
             help='Rips a copy of your installed packages to pacgraph.txt.  Good for debugging.')
-    parser.add_option('-f', '--file', dest='file', default='pacgraph',
-            help='Override default filename/location.')
+    parser.add_option('-f', '--file', dest='filename', default='pacgraph',
+            help='Override default filename/location.  Do not specify an extension.')
     
     colors = optparse.OptionGroup(parser, "Theming Options")
     colors.add_option('-b', '--background', dest='background', metavar='COLOR', default='#ffffff',
@@ -676,7 +677,7 @@ def main():
     redhat = Redhat()
     textfile = Textfile()
     options, args = parse()
-    filename = os.path.expanduser(options.file)
+    filename = os.path.expanduser(options.filename)
     print 'Loading package info'
     if options.mode == 'arch':
         tree = arch.local_load()
@@ -695,7 +696,7 @@ def main():
             p.size = p.size / 1024
     stat_line = human_si(sum(v.size for k,v in tree.items()))
     if options.rip:
-        open(filename+'.txt', 'w').write(repr(tree))
+        open(filename + '.txt', 'w').write(repr(tree))
         return
     if options.console:
         print 'Total size:', stat_line
@@ -711,22 +712,22 @@ def main():
     tree = recenter(tree, all_points(tree))
     tree[stat_line] = Node(name=stat_line, font_pt=sum(options.point_size)//2)
     print 'Saving SVG'
-    svgify(tree, filename)
+    svgify(tree)
     if options.svg_only:
         return
     print 'Rendering PNG'
-    png_conversion = ['inkscape -D -e '+filename+'.png '+filename+'.svg',
-                      'svg2png '+filename+'.svg '+filename+'.png',
-                      'convert '+filename+'.svg '+filename+'.png']
+    png_conversion = ['inkscape -D -e %(fn)s.png %(fn)s.svg',
+                      'svg2png %(fn)s.svg %(fn)s.png',
+                      'convert %(fn)s.svg %(fn)s.png']
     for cmd_line in png_conversion:
         app = cmd_line.split()[0]
         if call_status('which %s' % app) != 0:
             continue
-        call_status(cmd_line)
+        call_status(cmd_line % {'fn':filename})
         if call_status('which optipng') == 0:
             print 'Optimizing PNG'
-            call_status('optipng '+filename+'.png')
-        return
+            call_status('optipng %s.png' % filename)
+        return  # after first success
     print 'No way to convert SVG to PNG.'
     print 'Inkscape, svg2png or imagemagick would be nice.'
     print 'Alternatives: "pacgraph-i" or "pacgraph --console".'
@@ -739,7 +740,6 @@ if __name__ == "__main__":
 possible/future command line options
 
 -a  --add         packages
--c  --chains      retain package chains
 -d  --dot         load dot file
 
 line weight? alpha? tree dump/load?
