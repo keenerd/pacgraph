@@ -20,7 +20,7 @@ class Node(object):
         self.inverse  = set([]) # of name strings
         self.size     = 0       # bytes, usually
         self.font_pt  = 0       # scaled from size
-        self.explicit = False   # True if explicitely installed package
+        self.explicit = False   # True if explicitly installed package
         self.center   = (0,0)   # (x,y)
         self.color    = '#000000'
         self.__dict__.update(kwargs)
@@ -510,17 +510,19 @@ def place(packs):
     "radial placement algo, returns non-overlapping coords"
     # maybe try two different link_pulls for each placement?
     pri = prioritized(packs)
+    yield pri[0], (0,0)
     for name in pri[1:]:
+        node = packs[name]
         origin_name = best_origin(name, pri, packs)
         #print 'placing', name, 'around', origin_name
         origin = packs[origin_name].center
         heading = xy2rad(*link_pull(name, origin_name, packs))
         # unplaced links will need more room
-        scale = len(packs[name].all-set(pri[:pri.index(name)]))+1
+        scale = len(node.all-set(pri[:pri.index(name)]))+1
         b_list = all_bboxes(name, packs, pri)
-        r = search(packs[name].cd, origin, heading, scale, b_list)
-        packs[name].center = pol2xy(origin, heading, r)
-    return packs
+        r = search(node.cd, origin, heading, scale, b_list)
+        center = pol2xy(origin, heading, r)
+        yield name, center
 
 def offset_coord(c,d):
     "corrects textbox origin"
@@ -708,7 +710,8 @@ def main():
         return
     print 'Placing %i nodes' % len(tree)
     tree = pt_sizes(tree, *options.point_size)
-    tree = place(tree)
+    for n,c in place(tree):
+        tree[n].center = c
     tree = recenter(tree, all_points(tree))
     tree[stat_line] = Node(name=stat_line, font_pt=sum(options.point_size)//2)
     print 'Saving SVG'

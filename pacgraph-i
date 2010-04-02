@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-dev = False
+dev = True
 
 from Tkinter import *
 import sys, threading, Queue
@@ -97,35 +97,35 @@ def main():
         tree = arch.repo_load()
     print 'Preparing %i nodes.' % len(tree)
     tree = pacgraph.pt_sizes(tree, 10, 100)
-    tree = pacgraph.place(tree)
-    print 'Hover, drag, scroll and type to control.'
     
     root = Tk()
     canvas = Canvas(root, bg=colors['bg'])
     canvas.pack(expand=1, fill=BOTH)
     canvas.tk_focusFollowsMouse()
     
-    lines = pacgraph.all_links(tree)
     lines_tk = []
-    for line in lines:
-        p = line[0] + line[1]
-        c = colors['line']
-        l = Container()
-        l.p1 = line[0]
-        l.p2 = line[1]
-        l.tk = canvas.create_line(p, fill=c)
-        lines_tk.append(l)
-    
-    for name,info in tree.items():
-        p = info.font_pt
+    placed = set([])
+    for name, center in pacgraph.place(tree):
+        placed.add(name)
+        tree[name].center = center
+        lines = [(center, tree[l].center) for l in placed & tree[name].all]
+        for line in lines:
+            l = Container()
+            l.p = line[0] + line[1]
+            l.c = colors['line']
+            l.tk = canvas.create_line(l.p, fill=l.c)
+            canvas.tag_lower(l.tk)
+            lines_tk.append(l) 
+        p = tree[name].font_pt
         tree[name].tk = canvas.create_text(
-                info.center[0], info.center[1]+p//4, 
+                center[0], center[1]+p//4, 
                 text=name, anchor=S, fill=colors['uns'], 
                 font=('Monospace', str(p//2)))
         n = name
         canvas.tag_bind(tree[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
         canvas.tag_bind(tree[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
     
+    print 'Hover, drag, scroll and type to control.'
     motion = Motion()
     canvas.bind('<B1-Motion>', motion.drag)
     canvas.bind('<ButtonRelease-1>', motion.button_up)
