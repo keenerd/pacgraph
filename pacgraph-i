@@ -1,8 +1,9 @@
 #! /usr/bin/env python
 
-dev = True
+dev = False
 
 from Tkinter import *
+from multiprocessing import Process
 import sys, threading, Queue
 
 if not dev:
@@ -21,7 +22,8 @@ class Motion(object):
     def __init__(self):
         self.mouse = None  # prev canvas coord
         self.scale = 1.0
-        self.typed = ''
+        self.typed = ''  # keyboard search buffer
+        self.offset = (0,0)  # unzoomed coords
     def button_up(self, event):
         self.mouse = None
     def drag(self, event):
@@ -32,12 +34,13 @@ class Motion(object):
         mdy = event.y - self.mouse[1]
         canvas.move(ALL, mdx, mdy)
         self.mouse = (event.x, event.y)
+        self.offset = xy_add(self.offset, (mdx, mdy))
     def zoom(self, event, factor):
         self.scale *= factor
         new_p = lambda p: str(max(1, int(p * 0.5 * self.scale)))
         cx,cy = origin()
         canvas.scale(ALL, cx, cy, factor, factor)
-        for n,v in tree.iteritems():
+        for n,v in list(cant.items()):
             canvas.itemconfig(v.tk, font=('Monospace', new_p(v.font_pt)))
     def zoom_in(self, event):
         if self.scale*1.1 > 2:
@@ -57,8 +60,8 @@ class Motion(object):
             self.typed = ''
         if c.isalpha():
             self.typed += c
-            matches = [n for n in tree if self.typed in n]
-        for name in tree:
+            matches = [n for n in cant if self.typed in n]
+        for name in list(cant):
             if name in matches:
                 color_text(name, 'sel')
             else:
@@ -71,23 +74,58 @@ def origin():
     "center of the canvas"
     return canvas.winfo_width()//2, canvas.winfo_height()//2
 
+def xy_add(p1, p2):
+    "add two points"
+    return p1[0]+p2[0], p1[1]+p2[1]
+
 def color_text(name, color):
-    canvas.itemconfig(tree[name].tk, fill=colors[color])
+    canvas.itemconfig(cant[name].tk, fill=colors[color])
 
 def hilite(event, name, selected):
+    loaded = set(cant)
     if selected:
         color_text(name, 'sel')
-        for l in tree[name].links:
+        for l in cant[name].links & loaded:
             color_text(l, 'dep')
-        for l in tree[name].inverse:
+        for l in cant[name].inverse & loaded:
             color_text(l, 'req')
     else:
         color_text(name, 'uns')
-        for l in tree[name].all:
+        for l in cant[name].all & loaded:
             color_text(l, 'uns')
 
+def async_place(tree):
+    "This is a horrible idea."
+    global canvas, cant
+    lines_tk = []
+    placed = set([])
+    cant = {}
+    for name, center in pacgraph.place(tree):
+        placed.add(name)
+        node = tree[name]
+        node.center = center
+        lines = [(center, cant[l].center) for l in placed & node.all]
+        for line in lines:
+            l = Container()
+            l.p = line[0] + line[1]
+            l.c = colors['line']
+            lp2 = xy_add(line[0], motion.offset) +\
+                  xy_add(line[1], motion.offset)
+            l.tk = canvas.create_line(lp2, fill=l.c)
+            canvas.tag_lower(l.tk)
+            lines_tk.append(l) 
+        p = node.font_pt
+        node.tk = canvas.create_text(
+                center[0]+motion.offset[0], center[1]+p//4+motion.offset[1], 
+                text=name, anchor=S, fill=colors['uns'], 
+                font=('Monospace', str(max(1, int(p*0.5*motion.scale)))))
+        cant[name] = node
+        n = name
+        canvas.tag_bind(cant[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
+        canvas.tag_bind(cant[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
+
 def main():
-    global canvas, tree
+    global canvas, tree, motion, cant
     arch = pacgraph.Arch()
     if len(sys.argv) == 1:
         print 'Loading local repo.'
@@ -97,36 +135,19 @@ def main():
         tree = arch.repo_load()
     print 'Preparing %i nodes.' % len(tree)
     tree = pacgraph.pt_sizes(tree, 10, 100)
+    print 'Hover, drag, scroll and type to control.'
     
     root = Tk()
     canvas = Canvas(root, bg=colors['bg'])
     canvas.pack(expand=1, fill=BOTH)
     canvas.tk_focusFollowsMouse()
-    
-    lines_tk = []
-    placed = set([])
-    for name, center in pacgraph.place(tree):
-        placed.add(name)
-        tree[name].center = center
-        lines = [(center, tree[l].center) for l in placed & tree[name].all]
-        for line in lines:
-            l = Container()
-            l.p = line[0] + line[1]
-            l.c = colors['line']
-            l.tk = canvas.create_line(l.p, fill=l.c)
-            canvas.tag_lower(l.tk)
-            lines_tk.append(l) 
-        p = tree[name].font_pt
-        tree[name].tk = canvas.create_text(
-                center[0], center[1]+p//4, 
-                text=name, anchor=S, fill=colors['uns'], 
-                font=('Monospace', str(p//2)))
-        n = name
-        canvas.tag_bind(tree[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
-        canvas.tag_bind(tree[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
-    
-    print 'Hover, drag, scroll and type to control.'
     motion = Motion()
+    cant = {}
+   
+    #ap = Process(target=async_place)
+    ap = threading.Timer(3.0, async_place, args=[tree])
+    ap.start()
+    
     canvas.bind('<B1-Motion>', motion.drag)
     canvas.bind('<ButtonRelease-1>', motion.button_up)
     canvas.bind('<B2-Motion>', motion.drag)
@@ -138,5 +159,6 @@ def main():
     canvas.bind('<Key>', motion.search)
     
     root.mainloop()
+    ap.join()
 
 main()
