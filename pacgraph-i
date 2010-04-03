@@ -20,9 +20,9 @@ colors = {'sel' : '#000',
 
 class Motion(object):
     def __init__(self):
-        self.mouse = None  # prev canvas coord
+        self.mouse = None    # prev canvas coord
         self.scale = 1.0
-        self.typed = ''  # keyboard search buffer
+        self.typed = ''      # keyboard search buffer
         self.offset = (0,0)  # unzoomed coords
     def button_up(self, event):
         self.mouse = None
@@ -34,10 +34,10 @@ class Motion(object):
         mdy = event.y - self.mouse[1]
         canvas.move(ALL, mdx, mdy)
         self.mouse = (event.x, event.y)
-        self.offset = xy_add(self.offset, (mdx, mdy))
+        self.offset = xy_add(self.offset, (mdx, mdy), self.scale**(-1))
     def zoom(self, event, factor):
         self.scale *= factor
-        new_p = lambda p: str(max(1, int(p * 0.5 * self.scale)))
+        new_p = lambda p: str(max(1, int(p * 0.4 * self.scale)))
         cx,cy = origin()
         canvas.scale(ALL, cx, cy, factor, factor)
         for n,v in list(cant.items()):
@@ -74,9 +74,17 @@ def origin():
     "center of the canvas"
     return canvas.winfo_width()//2, canvas.winfo_height()//2
 
-def xy_add(p1, p2):
-    "add two points"
-    return p1[0]+p2[0], p1[1]+p2[1]
+def xy_add(p1, p2, scale=1.0):
+    "add two and scale points"
+    return (p1[0]+p2[0]) / scale, (p1[1]+p2[1]) / scale
+
+def zoom_shift(p):
+    "real coords -> canvas coords"
+    px,py = p
+    ox,oy = motion.offset
+    cx,cy = origin()
+    z = motion.scale
+    return z * (px - cx + ox) + cx, z * (py - cy + oy) + cy
 
 def color_text(name, color):
     canvas.itemconfig(cant[name].tk, fill=colors[color])
@@ -109,16 +117,16 @@ def async_place(tree):
             l = Container()
             l.p = line[0] + line[1]
             l.c = colors['line']
-            lp2 = xy_add(line[0], motion.offset) +\
-                  xy_add(line[1], motion.offset)
+            lp2 = zoom_shift(line[0]) + zoom_shift(line[1])
             l.tk = canvas.create_line(lp2, fill=l.c)
             canvas.tag_lower(l.tk)
             lines_tk.append(l) 
         p = node.font_pt
+        tkcenter = zoom_shift((center[0], center[1]+p//4))
         node.tk = canvas.create_text(
-                center[0]+motion.offset[0], center[1]+p//4+motion.offset[1], 
+                tkcenter[0], tkcenter[1], 
                 text=name, anchor=S, fill=colors['uns'], 
-                font=('Monospace', str(max(1, int(p*0.5*motion.scale)))))
+                font=('Monospace', str(max(1, int(p*0.4*motion.scale)))))
         cant[name] = node
         n = name
         canvas.tag_bind(cant[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
