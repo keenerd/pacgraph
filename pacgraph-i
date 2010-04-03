@@ -106,13 +106,13 @@ def async_place(tree):
     "This is a horrible idea."
     global canvas, cant
     lines_tk = []
-    placed = set([])
+    placed = []
     cant = {}
     for name, center in pacgraph.place(tree):
-        placed.add(name)
+        placed.append(name)
         node = tree[name]
         node.center = center
-        lines = [(center, cant[l].center) for l in placed & node.all]
+        lines = [(center, cant[l].center) for l in set(placed) & node.all]
         for line in lines:
             l = Container()
             l.p = line[0] + line[1]
@@ -128,9 +128,13 @@ def async_place(tree):
                 text=name, anchor=S, fill=colors['uns'], 
                 font=('Monospace', str(max(1, int(p*0.4*motion.scale)))))
         cant[name] = node
+        if len(placed) >= 2:
+            hilite(None, placed[-2], False)
+        hilite(None, name, True)
         n = name
         canvas.tag_bind(cant[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
         canvas.tag_bind(cant[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
+    hilite(None, placed[-1], False)
 
 def main():
     global canvas, tree, motion, cant
