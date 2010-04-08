@@ -4,7 +4,7 @@ dev = False
 
 from Tkinter import *
 from multiprocessing import Process
-import sys, threading, Queue
+import sys, threading, Queue, time
 
 if not dev:
     import imp
@@ -104,15 +104,17 @@ def hilite(event, name, selected):
 
 def async_place(tree):
     "This is a horrible idea."
-    global canvas, cant
-    lines_tk = []
+    global canvas, cant, motion
+    motion.offset = origin()
     placed = []
     cant = {}
-    for name, center in pacgraph.place(tree):
+    frame_delay = 0.03  # seconds
+    prev_frame = time.time()
+    for name, centers in pacgraph.place(tree, detail=True):
         placed.append(name)
         node = tree[name]
-        node.center = center
         lines = [(center, cant[l].center) for l in set(placed) & node.all]
+        node.lines_tk = []
         for line in lines:
             l = Container()
             l.p = line[0] + line[1]
@@ -120,17 +122,32 @@ def async_place(tree):
             lp2 = zoom_shift(line[0]) + zoom_shift(line[1])
             l.tk = canvas.create_line(lp2, fill=l.c)
             canvas.tag_lower(l.tk)
-            lines_tk.append(l) 
+            node.lines_tk.append(l)
         p = node.font_pt
+        center = centers[0]
+        node.center = centers[0]
         tkcenter = zoom_shift((center[0], center[1]+p//4))
         node.tk = canvas.create_text(
                 tkcenter[0], tkcenter[1], 
-                text=name, anchor=S, fill=colors['uns'], 
+                text=name, anchor=S, fill=colors['sel'], 
                 font=('Monospace', str(max(1, int(p*0.4*motion.scale)))))
         cant[name] = node
+        hilite(None, name, True)
+        for center in centers:
+            cant[name].center = center
+            tkcenter = zoom_shift((center[0], center[1]+p//4))
+            for line in cant[name].lines_tk:
+                line.p = tkcenter + line.p[2:]
+                canvas.coords(line.tk, tkcenter + zoom_shift(line.p[2:]))
+            canvas.itemconfig(cant[name].tk, fill=colors['bg'])
+            canvas.coords(cant[name].tk, tkcenter)
+            canvas.itemconfig(cant[name].tk, fill=colors['sel'])
+            pause = prev_frame + frame_delay - time.time()
+            if pause > 0:
+                time.sleep(pause)
+            prev_frame = time.time()
         if len(placed) >= 2:
             hilite(None, placed[-2], False)
-        hilite(None, name, True)
         n = name
         canvas.tag_bind(cant[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
         canvas.tag_bind(cant[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))

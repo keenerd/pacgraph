@@ -491,9 +491,11 @@ def best_origin(name, pri, packs):
 
 def search(cd, origin, heading, scale, b_list):
     "binary search recursive closure thingy, returns radius"
+    history = []
     def probe(r):
         "returns true if clear"
         cd[0] = pol2xy(origin, heading, r)
+        history.append(cd[0])
         bb1 = bbox(*cd)
         return not any(in_box(bb1, bb2) for bb2 in b_list)
     def search2(step, r):
@@ -504,13 +506,17 @@ def search(cd, origin, heading, scale, b_list):
         if probe(r+step//2):
             return search2(step//2, r+step//2)
         return search2(step*2, r+step*2)
-    return search2(scale*5, scale*5)
+    return search2(scale*5, scale*5), history
 
-def place(packs):
+def place(packs, detail=False):
     "radial placement algo, returns non-overlapping coords"
     # maybe try two different link_pulls for each placement?
+    # maybe some control inversion to avoid queue checks?
     pri = prioritized(packs)
-    yield pri[0], (0,0)
+    if detail:
+        yield pri[0], [(0,0)]
+    else:
+        yield pri[0], (0,0)
     for name in pri[1:]:
         node = packs[name]
         origin_name = best_origin(name, pri, packs)
@@ -520,9 +526,12 @@ def place(packs):
         # unplaced links will need more room
         scale = len(node.all-set(pri[:pri.index(name)]))+1
         b_list = all_bboxes(name, packs, pri)
-        r = search(node.cd, origin, heading, scale, b_list)
+        r,history = search(node.cd, origin, heading, scale, b_list)
         center = pol2xy(origin, heading, r)
-        yield name, center
+        if detail:
+            yield name, history
+        else:
+            yield name, center
 
 def offset_coord(c,d):
     "corrects textbox origin"
