@@ -682,6 +682,20 @@ def human_si(number):
     limit,si = [p for p in powers if p[0] > number][0]
     return str(number//(limit//2**15)) + si +'B'
 
+def console_dump(tree):
+    options, args = parse()
+    stat_line = human_si(sum(v.size for k,v in tree.items()))
+    print 'Total size:', stat_line
+    if options.use_compression:
+        tops = toplevel_packs(tree)
+    else:
+        tops = tree.keys()
+    if len(tops) == 1:
+        tops = tree.keys()
+    for s,n in packs_by_size(tree, tops):
+        print human_si(s), n
+    return
+
 def main():
     arch = Arch()
     debian = Debian()
@@ -710,12 +724,7 @@ def main():
         open(filename + '.txt', 'w').write(repr(tree))
         return
     if options.console:
-        print 'Total size:', stat_line
-        tops = toplevel_packs(tree)
-        if len(tops) == 1:
-            tops = tree.keys()
-        for s,n in packs_by_size(tree, tops):
-            print human_si(s), n
+        console_dump(tree)
         return
     print 'Placing %i nodes' % len(tree)
     tree = pt_sizes(tree, *options.point_size)
@@ -743,6 +752,8 @@ def main():
     print 'No way to convert SVG to PNG.'
     print 'Inkscape, svg2png or imagemagick would be nice.'
     print 'Alternatives: "pacgraph-i" or "pacgraph --console".'
+    print
+    console_dump(tree)
 
 if __name__ == "__main__":
     main()
