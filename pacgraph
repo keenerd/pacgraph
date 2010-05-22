@@ -672,6 +672,8 @@ def parse():
             help='Curently supported modes are arch, arch-repo (buggy), debian (buggy), redhat (buggy) and ipkg (buggy).  Default is %s.' % default_action)
     beta.add_option('-n', '--no-compression', dest='use_compression', action='store_false', default=True,
             help='Disable all chain compression.')
+    beta.add_option( '--shared', dest='shared', action='store_true', default=False,
+            help='Compare shared libraries.')
     parser.add_option_group(beta)
     
     options, args = parser.parse_args()
@@ -695,6 +697,23 @@ def console_dump(tree):
     for s,n in packs_by_size(tree, tops):
         print human_si(s), n
     return
+
+def secondlevel_sizes(tree):
+    # this is slightly lazy and only handles the common case
+    # it ignores oddly shaped dep trees
+    tops = toplevel_packs(tree)
+    seconds = set([])
+    [seconds.update(tree[t].links) for t in tops]  # yucky list comp
+    sec_info = []
+    for s in seconds:
+        aboves = tree[s].inverse & tops  # lazy!
+        size = tree[s].size + sum(tree[i].size for i in aboves)
+        sec_info.append((size/len(aboves), s, size, aboves))
+    sec_info.sort()
+    sec_info.reverse()
+    for null, s, size, aboves in sec_info:
+        print '%s: %s ' % (s, human_si(size))
+        print '\t', ' '.join(sorted(aboves))
 
 def main():
     arch = Arch()
@@ -725,6 +744,9 @@ def main():
         return
     if options.console:
         console_dump(tree)
+        return
+    if options.shared:
+        secondlevel_sizes(tree)
         return
     print 'Placing %i nodes' % len(tree)
     tree = pt_sizes(tree, *options.point_size)
