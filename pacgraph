@@ -621,7 +621,9 @@ def svgify(packs):
     svg =  xml_wrap('rect', None, x=0, y=0, width=width, height=height, style='fill:%s;' % options.background)
     svg += xml_wrap('g', '\n'.join(paths), style='stroke:%s; stroke-opacity:0.15; fill:none;' % options.link)
     svg += xml_wrap('g', '\n'.join(texts), **{'font-family':'Monospace'})
-    svg = xml_wrap('svg', svg, width=width, height=height)
+    svg = xml_wrap('svg', svg, width=width, height=height, xmlns='http://www.w3.org/2000/svg')
+    svg = '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/SVG/DTD/svg10.dtd">\n' + svg
+    svg = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + svg
     filename = os.path.expanduser(options.filename)
     open(filename + '.svg', 'w').write(svg)
 
