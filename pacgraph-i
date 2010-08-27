@@ -18,12 +18,18 @@ colors = {'sel' : '#000',
           'bg'  : '#FFF',
           'line': '#DDD'}
 
+# UI thoughts:
+# hold right plays detailed history
+# right drag fast moves ahead/back in history
+
+
 class Motion(object):
     def __init__(self):
         self.mouse = None    # prev canvas coord
         self.scale = 1.0
         self.typed = ''      # keyboard search buffer
         self.offset = (0,0)  # unzoomed coords
+        self.history = []    # list of (package, [coords])
     def button_up(self, event):
         self.mouse = None
     def drag(self, event):
@@ -113,6 +119,7 @@ def async_place(tree):
     for name, centers in pacgraph.place(tree, detail=True):
         placed.append(name)
         node = tree[name]
+        motion.history.append((name, centers))
         lines = [(center, cant[l].center) for l in set(placed) & node.all]
         node.lines_tk = []
         for line in lines:
