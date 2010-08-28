@@ -95,6 +95,7 @@ class Arch(object):
         return name, info
     
     def load_tree(self, dirs):
+        dirs = filter(os.path.isdir, dirs)
         packages = [p for r in dirs for p,d,f in os.walk(r) if f]
         tree = {}
         for p in set(packages) - set(dirs):
@@ -158,7 +159,8 @@ class Arch(object):
         packages = args
         dirs = ['/var/lib/pacman/sync/community/',
                 '/var/lib/pacman/sync/core/',
-                '/var/lib/pacman/sync/extra/']
+                '/var/lib/pacman/sync/extra/',
+                '/var/lib/pacman/sync/multilib/',]
         tree = self.merge_tree(self.load_tree(dirs))
         if not packages:
             return legal_links(compress_chains(bilink_tree(tree)))
