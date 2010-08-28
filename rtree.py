@@ -36,10 +36,11 @@ class Node(object):
         self.bbox = bbox
         if bbox is None:
             self.bbox = (0,0,0,0)
-    def show(self):
+    def show(self, depth=0):
+        head = '  ' * depth + str(self.bbox) + ' '
         if self.name:
-            return self.bbox, self.name
-        return self.bbox, [c.show() for c in self.children]
+            return head + self.name + '\n'
+        return head + '\n' + ''.join(c.show(depth+1) for c in self.children)
     def root(self):
         if self.parent is None:
             return self
@@ -60,9 +61,14 @@ class Node(object):
     def insert(self, bbox, name=None):
         parent = self.choose_leaf(bbox)
         parent.children.append(Node(parent, bbox, name))
-        parent.bbox = merge(parent.bbox, bbox)
+        parent.merge_up(bbox)
         if len(parent.children) > parent.bigm:
             parent.divide_children()
+        #print self.root().show()
+    def merge_up(self, bbox):
+        self.bbox = merge(self.bbox, bbox)
+        if self.parent:
+            self.parent.merge_up(self.bbox)
     def is_leaf_node(self):
         return (not self.children) or bool(self.children[0].name)
     def choose_leaf(self, bbox):
@@ -78,7 +84,7 @@ class Node(object):
     def divide_children(self):
         by_sizes = [(area(c.bbox), c) for c in self.children]
         by_sizes.sort()
-        by_sizes = zip(*by_sizes)[1]
+        by_sizes = list(zip(*by_sizes)[1])
         # two biggest
         c1 = by_sizes.pop()
         c2 = by_sizes.pop()
@@ -91,7 +97,7 @@ class Node(object):
         for c in by_sizes:
             p_temp = self.best_node(c.bbox)
             p_temp.children.append(c)
-            p_temp.bbox = merge(*p_temp.children)
+            p_temp.bbox = merge(*[c.bbox for c in p_temp.children])
         [c.__setattr__('parent', p1) for c in p1.children]
         [c.__setattr__('parent', p2) for c in p2.children]
         # self is probably too small, underflow?
@@ -105,6 +111,7 @@ class Node(object):
 
 def merge(*bboxes):
     "new bbox surrounding inputs"
+    #print 'merge', bboxes
     fns = (min, min, max, max)
     return tuple(f(p) for f,p in zip(fns, zip(*bboxes)))
 

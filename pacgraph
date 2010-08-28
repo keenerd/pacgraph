@@ -4,6 +4,8 @@ import random, math, subprocess, os, cProfile, optparse
 from itertools import *
 from collections import deque, defaultdict
 
+import rtree
+
 # depends contains %CONFLICTS%, 
 # %DEPENDS%, %OPTDEPENDS%, %PROVIDES%
 
@@ -508,11 +510,32 @@ def search(cd, origin, heading, scale, b_list):
         return search2(step*2, r+step*2)
     return search2(scale*5, scale*5), history
 
+def search3(cd, origin, heading, scale, rt):
+    "binary search recursive closure thingy, returns radius"
+    history = []
+    def probe(r):
+        "returns true if clear"
+        cd[0] = pol2xy(origin, heading, r)
+        history.append(cd[0])
+        bb1 = bbox(*cd)
+        return not any(rt.search(bb1))
+    def search2(step, r):
+        if probe(r-step//2):
+            if step < 8*scale:
+                return r-step//2
+            return search2(step//2, r-step//2)
+        if probe(r+step//2):
+            return search2(step//2, r+step//2)
+        return search2(step*2, r+step*2)
+    return search2(scale*5, scale*5), history
+
 def place(packs, detail=False):
     "radial placement algo, returns non-overlapping coords"
     # maybe try two different link_pulls for each placement?
     # maybe some control inversion to avoid queue checks?
     pri = prioritized(packs)
+    rt = rtree.Node()
+    rt.insert(bbox((0,0), packs[pri[0]].dim), pri[0])
     if detail:
         yield pri[0], [(0,0)]
     else:
@@ -525,9 +548,11 @@ def place(packs, detail=False):
         heading = xy2rad(*link_pull(name, origin_name, packs))
         # unplaced links will need more room
         scale = len(node.all-set(pri[:pri.index(name)]))+1
-        b_list = all_bboxes(name, packs, pri)
-        r,history = search(node.cd, origin, heading, scale, b_list)
+        #b_list = all_bboxes(name, packs, pri)
+        #r,history = search(node.cd, origin, heading, scale, b_list)
+        r,history = search3(node.cd, origin, heading, scale, rt)
         center = pol2xy(origin, heading, r)
+        rt.insert(bbox(center, packs[name].dim), name)
         if detail:
             yield name, history
         else:
