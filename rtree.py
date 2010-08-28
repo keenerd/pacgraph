@@ -2,12 +2,15 @@
 
 from itertools import *
 
+# 629 nodes: 90.28 -> 83.62 -> 53.78
+# 3526 nodes: 2897.06 -> 2664.81
+
 def flatten(list_of_lists):
     return list(chain(*list_of_lists))
 
 def common_ranges(r1, r2):
     "returns true if overlap"
-    if r1 < r2:
+    if r1[0] < r2[0]:  # list/tuple comp
         return r1[1] > r2[0]
     return r2[1] > r1[0]
 
@@ -33,9 +36,9 @@ class Node(object):
         self.bigm = bigm
         self.lilm = bigm//2
         self.children = []
-        self.bbox = bbox
-        if bbox is None:
-            self.bbox = (0,0,0,0)
+        self.bbox = (0,0,0,0)
+        if bbox:
+            self.bbox = tuple(bbox)
     def show(self, depth=0):
         head = '  ' * depth + str(self.bbox) + ' '
         if self.name:
@@ -50,6 +53,7 @@ class Node(object):
         return min((area(merge(to_add, c.bbox)), c) for c in self.children)[1]
     def search(self, bbox=None):
         "yields matching leaf objects, no bbox for all leaves"
+        #print 'search', bbox
         todo = [self]
         while todo:
             node = todo.pop()
@@ -59,6 +63,7 @@ class Node(object):
                 yield node
             todo.extend(node.children)
     def insert(self, bbox, name=None):
+        #print 'insert', bbox, name
         parent = self.choose_leaf(bbox)
         parent.children.append(Node(parent, bbox, name))
         parent.merge_up(bbox)
@@ -66,7 +71,10 @@ class Node(object):
             parent.divide_children()
         #print self.root().show()
     def merge_up(self, bbox):
-        self.bbox = merge(self.bbox, bbox)
+        new_bbox = merge(self.bbox, bbox)
+        if new_bbox == self.bbox:
+            return
+        self.bbox = new_bbox
         if self.parent:
             self.parent.merge_up(self.bbox)
     def is_leaf_node(self):
@@ -82,6 +90,7 @@ class Node(object):
         if self.parent and (len(self.children) < self.lilm):
             self.underflow()
     def divide_children(self):
+        #print 'dividing', [c.name for c in self.children], 'into', 
         by_sizes = [(area(c.bbox), c) for c in self.children]
         by_sizes.sort()
         by_sizes = list(zip(*by_sizes)[1])
@@ -93,13 +102,24 @@ class Node(object):
         p2 = Node(self, c2.bbox)
         p1.children.append(c1)
         p2.children.append(c2)
+        # preserve root object
         self.children = [p1, p2]
-        for c in by_sizes:
-            p_temp = self.best_node(c.bbox)
-            p_temp.children.append(c)
-            p_temp.bbox = merge(*[c.bbox for c in p_temp.children])
+        while by_sizes:
+            c = smallest_merge(by_sizes, p1.bbox)
+            p1.children.append(c)
+            p1.merge_up(c.bbox)
+            by_sizes.remove(c)
+            if not by_sizes:
+                break
+            c = smallest_merge(by_sizes, p2.bbox)
+            p2.children.append(c)
+            p2.merge_up(c.bbox)
+            by_sizes.remove(c)
+        self.bbox = merge(p1.bbox, p2.bbox)
+        self.merge_up(self.bbox)
         [c.__setattr__('parent', p1) for c in p1.children]
         [c.__setattr__('parent', p2) for c in p2.children]
+        #print [c.name for c in p1.children], [c.name for c in p2.children]
         # self is probably too small, underflow?
     def underflow(self):
         "Not implemented"
@@ -118,6 +138,9 @@ def merge(*bboxes):
 def area(bbox):
     return bbox[2]-bbox[0] * bbox[3]-bbox[1]
 
+def smallest_merge(nodes, bbox):
+    "return best node from nodes"
+    return min((area(merge(n.bbox, bbox)), n) for n in nodes)[1]
 
 
 
