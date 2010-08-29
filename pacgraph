@@ -307,6 +307,7 @@ class Rtree(object):
         self.lilm = bigm//2
         self.children = []
         self.box = (0,0,0,0)
+        self.last_hit = None
         if box:
             self.box = tuple(box)
     def show(self, depth=0):
@@ -330,6 +331,23 @@ class Rtree(object):
             if box and not in_box(node.box, box):
                 continue
             if node.name:
+                self.last_hit = node
+                yield node
+            todo.extend(node.children)
+    def search_cache(self, box):
+        "assumes consecutive searches will be near each other"
+        todo = [self.root()]
+        if self.last_hit:
+            todo.append(self.last_hit.parent)
+            todo.append(self.last_hit)
+            #while todo[0].parent:
+            #    todo.insert(0, todo[0].parent)
+        while todo:
+            node = todo.pop()
+            if not in_box(node.box, box):
+                continue
+            if node.name:
+                self.last_hit = node
                 yield node
             todo.extend(node.children)
     def insert(self, box, name=None):
@@ -384,7 +402,6 @@ class Rtree(object):
     def delete(self, box):
         "Not implemented."
         raise
-
 
 def merge(*boxes):
     "new box surrounding inputs"
@@ -621,6 +638,7 @@ def search3(cd, origin, heading, scale, rt):
         cd[0] = pol2xy(origin, heading, r)
         history.append(cd[0])
         bb1 = bbox(*cd)
+        #return not any(rt.search_cache(bb1))
         return not any(rt.search(bb1))
     def search2(step, r):
         if probe(r-step//2):
