@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 
-import random, math, subprocess, os, cProfile, optparse
+import math, subprocess, os, cProfile, optparse
+from random import random, randint
 from itertools import *
 from collections import deque, defaultdict
 
-# depends contains %CONFLICTS%, 
-# %DEPENDS%, %OPTDEPENDS%, %PROVIDES%
+# depends contains %CONFLICTS%, %DEPENDS%, %OPTDEPENDS%, %PROVIDES%
 
 # desc contains %URL%, %REPLACES%, %LICENSE%,
 # %NAME%, %GROUPS%, %BUILDDATE%, %REASON%, %DESC%,
@@ -16,8 +16,8 @@ pj = os.path.join
 class Node(object):
     def __init__(self, **kwargs):
         self.name     = ''      # matches dict key
-        self.links    = set([]) # of name strings
-        self.inverse  = set([]) # of name strings
+        self.links    = set() # of name strings
+        self.inverse  = set() # of name strings
         self.size     = 0       # bytes, usually
         self.font_pt  = 0       # scaled from size
         self.explicit = False   # True if explicitly installed package
@@ -47,22 +47,15 @@ class MockOptions(object):
 
 def unrip(path):
     "path -> dict of Nodes"
-    text = ''.join(open(path))
-    tree = eval(text)
+    tree = eval(open(path).read())
     return bilink_tree(dict((p,Node(**n)) for p,n in tree.items()))
 
 def l_part(n, c):
     return n.partition(c)[0]
 
-def reduce_by(fn, data, arg_list):
-    data = fn(data, arg_list.pop(0))
-    if not arg_list:
-        return data
-    return reduce_by(fn, data, arg_list)
-
 class Arch(object):
     def clean(self, n):
-        return reduce_by(l_part, n.strip(), list('><:='))
+        return reduce(l_part, list('><:='), n.strip())
     
     def load_info(self, arch_file):
         info = defaultdict(list)
@@ -78,7 +71,7 @@ class Arch(object):
         return info
     
     def strip_info(self, info):
-        keep = ['DEPENDS', 'OPTDEPENDS', 'PROVIDES', 'SIZE', 'ISIZE', 'REASON']
+        keep = set(['DEPENDS', 'OPTDEPENDS', 'PROVIDES', 'SIZE', 'ISIZE', 'REASON'])
         info = dict((k.strip('%'),v) for k,v in info.items())
         name = info['NAME'][0]
         info = dict((k,v) for k,v in info.items() if k in keep)
@@ -95,10 +88,10 @@ class Arch(object):
         return name, info
     
     def load_tree(self, dirs):
-        dirs = filter(os.path.isdir, dirs)
-        packages = [p for r in dirs for p,d,f in os.walk(r) if f]
+        dirs = set(filter(os.path.isdir, dirs))
+        packages = set(p for r in dirs for p,d,f in os.walk(r) if f)
         tree = {}
-        for p in set(packages) - set(dirs):
+        for p in packages - dirs:
             try:
                 info = {}
                 arch_file = open(pj(p,'depends'), 'r')
@@ -175,7 +168,7 @@ class Debian(object):
         "New implementation not extensively tested, your mileage may vary"
         tree = {}
         installed = False
-        deps = set([])
+        deps = set()
         name = ''
         size = 0
         if status_path is None:
@@ -196,7 +189,7 @@ class Debian(object):
             elif line == '\n' and installed and name and size:
                 tree[name] = Node(name = name, links = deps, size = size)
                 installed = False
-                deps = set([])
+                deps = set()
                 name = ''
                 size = 0
         file.close()
@@ -229,17 +222,17 @@ class Redhat(object):
             requires = set([capability.strip() for capability in requires.split(',')]) - set([''])
             for capability in requires:
                 if capability not in requirer_lookup:
-                    requirer_lookup[capability] = set([])
+                    requirer_lookup[capability] = set()
                 requirer_lookup[capability] |= set([name])
             provides = set([capability.strip() for capability in provides.split(',')]) - set([''])
             for capability in provides:
                 if capability not in provider_lookup:
-                    provider_lookup[capability] = set([])
+                    provider_lookup[capability] = set()
                 provider_lookup[capability] |= set([name])
             if name in tree:
                 tree[name].size += size
             else:
-                tree[name] = Node(name = name, links = set([]), size = size)
+                tree[name] = Node(name = name, links = set(), size = size)
         for capability in set(requirer_lookup) & set(provider_lookup):
             for package in requirer_lookup[capability]:
                 tree[package].links |= provider_lookup[capability]
@@ -281,7 +274,7 @@ class Textfile(object):
     def load_tree(self):
         tree = {}
         filename = 'data'
-        for line in open(filename).readlines():
+        for line in open(filename):
             words = line.split()
             node = words[0]
             size = float(words[1])
@@ -483,14 +476,14 @@ def shared_size(package, tree):
 
 def biggest_packs(tree):
     packs = [(shared_size(p, tree), p) for p in tree]
-    return [p for s,p in reversed(sorted(packs))]
+    return [p for s,p in sorted(packs, reverse=True)]
 
 def toplevel_packs(tree):
     return set(p for p in tree if not tree[p].inverse)
 
 def packs_by_size(tree, pack_list):
     by_sizes = [(tree[n].size, n) for n in pack_list]
-    return reversed(sorted(by_sizes))
+    return sorted(by_sizes, reverse=True)
 
 def legal_links(tree):
     "removes/reports dangling references"
@@ -525,20 +518,24 @@ def prioritized(packs):
     stats = [n for l,n in reversed(sorted(stats))]
     # but slip in anyone who's deps are met early
     stats2 = []
-    for n in (n for n in stats if n not in stats2):
+    plotted = set()
+    for n in (n for n in stats if n not in plotted):
         stats2.append(n)
-        plotted = set(stats2)
-        deps_met = [k for k,node in packs.items() if node.all <= plotted]
-        stats2.extend(set(deps_met) - plotted)
+        plotted.add(n)
+        deps_met = set(k for k,node in packs.items() if node.all <= plotted)
+        stats2.extend(deps_met - plotted)
+        plotted.update(deps_met)
     return stats2
 
 def ran_rad():
-    return random.random()*2*math.pi
+    return random() * 2 * math.pi
 
 def bbox(center, dim):
     c,d = center,dim
-    x1,x2 = c[0]-d[0]//2, c[0]+d[0]//2
-    y1,y2 = c[1]-d[1]   , c[1]+d[1]//3
+    cx,cy = center
+    dx,dy = dim
+    x1,x2 = cx - dx//2, cx + dx//2
+    y1,y2 = cy - dy   , cy + dy//3
     return [x1, y1, x2, y2] 
 
 def common_ranges(r1, r2):
@@ -563,15 +560,16 @@ def all_bboxes(name, packs, pri=None):
     return [packs[n].box for n in name_list]
 
 def normalize(point, origin):
-    p2 = point[0]-origin[0], point[1]-origin[1]
-    length = (p2[0]**2 + p2[1]**2)**0.5
-    return p2[0]/(length**2), p2[1]/(length**2)
+    "weighted"
+    dx,dy = point[0]-origin[0], point[1]-origin[1]
+    length_sq = dx**2 + dy**2
+    return dx/length_sq, dy/length_sq
 
 def link_pull(name, origin_n, packs):
     "average of angles of links"
     origin = packs[origin_n].center
     norm_ps = lambda ps: [normalize(c, origin) for c in ps if c not in [(0,0), origin]]
-    rot90 = lambda x,y: (-y,x) if random.randint(0,1) else (y,-x)
+    rot90 = lambda x,y: (-y,x) if randint(0,1) else (y,-x)
     good_links = packs[name].all
     skew_links = set(packs.keys()) - good_links
     g_centers  = norm_ps(packs[l].center for l in good_links)
@@ -587,13 +585,9 @@ def link_pull(name, origin_n, packs):
     return map(sum, zip(*centers))
 
 def xy2rad(x,y):
-    "adds some wiggle so things are less spindly"
-    # no longer needed?
     if (x,y) == (0,0):
         return ran_rad()
-    #wiggle = 0  # radians
-    #wiggle = random.random()*wiggle - wiggle/2.0
-    return math.atan2(y,x) #+ wiggle
+    return math.atan2(y,x)
 
 def pol2xy(o,a,r):
     return int(o[0]+r*math.cos(a)), int(o[1]+r*math.sin(a))
@@ -609,28 +603,9 @@ def best_origin(name, pri, packs):
     possible = [n for n in possible if n in packs[name].all]
     if not possible:
         return pri[0]  # root package
-    return sorted((packs[n].size, n) for n in possible)[-1][1]
+    return max((packs[n].size, n) for n in possible)[1]
 
-def search(cd, origin, heading, scale, b_list):
-    "binary search recursive closure thingy, returns radius"
-    history = []
-    def probe(r):
-        "returns true if clear"
-        cd[0] = pol2xy(origin, heading, r)
-        history.append(cd[0])
-        bb1 = bbox(*cd)
-        return not any(in_box(bb1, bb2) for bb2 in b_list)
-    def search2(step, r):
-        if probe(r-step//2):
-            if step < 8*scale:
-                return r-step//2
-            return search2(step//2, r-step//2)
-        if probe(r+step//2):
-            return search2(step//2, r+step//2)
-        return search2(step*2, r+step*2)
-    return search2(scale*5, scale*5), history
-
-def search3(cd, origin, heading, scale, rt):
+def search(cd, origin, heading, scale, rt):
     "binary search recursive closure thingy, returns radius"
     history = []
     def probe(r):
@@ -669,9 +644,7 @@ def place(packs, detail=False):
         heading = xy2rad(*link_pull(name, origin_name, packs))
         # unplaced links will need more room
         scale = len(node.all-set(pri[:pri.index(name)]))+1
-        #b_list = all_bboxes(name, packs, pri)
-        #r,history = search(node.cd, origin, heading, scale, b_list)
-        r,history = search3(node.cd, origin, heading, scale, rt)
+        r,history = search(node.cd, origin, heading, scale, rt)
         center = pol2xy(origin, heading, r)
         rt.insert(bbox(center, packs[name].dim), name)
         if detail:
@@ -684,7 +657,7 @@ def offset_coord(c,d):
     "corrects textbox origin"
     return c[0]-d[0]//2, c[1]  #+d[1]//2
 
-def xml_wrap(tag, inner, **kwargs):
+def xml_wrap(tag, inner=None, **kwargs):
     kw = ' '.join('%s="%s"' % (k, str(v)) for k,v in kwargs.items())
     if inner is None:
         return '<%s %s/>' % (tag, kw)
@@ -695,7 +668,7 @@ def control_point(p1, p2, drop=None):
     lower  = (p1,p2)[p1[1]<p2[1]]
     higher = (p2,p1)[p1[1]<p2[1]]
     if drop is None:
-        drop = 0.5 + 0.5*random.random()
+        drop = 0.5 + 0.5 * random()
     return (lower[0]+higher[0])//2, lower[1]+dx*drop//2
 
 def quad_spline(p1, p2):
@@ -852,7 +825,7 @@ def secondlevel_sizes(tree):
     # it ignores oddly shaped dep trees
     tops = toplevel_packs(tree)
     seconds = set([])
-    [seconds.update(tree[t].links) for t in tops]  # yucky list comp
+    [seconds.update(tree[t].links) for t in tops]
     sec_info = []
     for s in seconds:
         aboves = tree[s].inverse & tops  # lazy!
