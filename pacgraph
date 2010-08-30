@@ -4,6 +4,9 @@ import math, subprocess, os, cProfile, optparse
 from random import random, randint
 from itertools import *
 from collections import deque, defaultdict
+from math import cos, sin, atan2
+tau = math.pi * 2
+pj = os.path.join
 
 # depends contains %CONFLICTS%, %DEPENDS%, %OPTDEPENDS%, %PROVIDES%
 
@@ -11,7 +14,6 @@ from collections import deque, defaultdict
 # %NAME%, %GROUPS%, %BUILDDATE%, %REASON%, %DESC%,
 # %SIZE%, %PACKAGER%, %ARCH%, %INSTALLDATE%, %VERSION%
 
-pj = os.path.join
 
 class Node(object):
     def __init__(self, **kwargs):
@@ -39,6 +41,7 @@ class Node(object):
         return bbox(self.center, self.dim)
     @property
     def cd(self):
+        # phase this out
         return [self.center, self.dim]
 
 class MockOptions(object):
@@ -55,7 +58,7 @@ def l_part(n, c):
 
 class Arch(object):
     def clean(self, n):
-        return reduce(l_part, list('><:='), n.strip())
+        return reduce(l_part, '><:=', n.strip())
     
     def load_info(self, arch_file):
         info = defaultdict(list)
@@ -72,9 +75,9 @@ class Arch(object):
     
     def strip_info(self, info):
         keep = set(['DEPENDS', 'OPTDEPENDS', 'PROVIDES', 'SIZE', 'ISIZE', 'REASON'])
-        info = dict((k.strip('%'),v) for k,v in info.items())
+        info = dict((k.strip('%'),v) for k,v in info.iteritems())
         name = info['NAME'][0]
-        info = dict((k,v) for k,v in info.items() if k in keep)
+        info = dict((k,v) for k,v in info.iteritems() if k in keep)
         if 'ISIZE' in info:
             info['SIZE'] = info['ISIZE']
         if 'SIZE' in info:
@@ -219,16 +222,16 @@ class Redhat(object):
             size,nullo,line = line.partition('<(^_^)>')
             size = int(size, 10)
             requires,nullo,provides = line.partition('<(^_^)>')
-            requires = set([capability.strip() for capability in requires.split(',')]) - set([''])
+            requires = set(capability.strip() for capability in requires.split(',')) - set([''])
             for capability in requires:
                 if capability not in requirer_lookup:
                     requirer_lookup[capability] = set()
                 requirer_lookup[capability] |= set([name])
-            provides = set([capability.strip() for capability in provides.split(',')]) - set([''])
+            provides = set(capability.strip() for capability in provides.split(',')) - set([''])
             for capability in provides:
                 if capability not in provider_lookup:
                     provider_lookup[capability] = set()
-                provider_lookup[capability] |= set([name])
+                provider_lookup[capability].add(name)
             if name in tree:
                 tree[name].size += size
             else:
@@ -514,7 +517,7 @@ def pt_sizes(tree, min_pt=10, max_pt=100):
 def prioritized(packs):
     "returns list of names, sorted by priority"
     # first are the most central, with lots of links
-    stats = [(len(node.all), k) for k,node in packs.items()]
+    stats = [(len(node.all), k) for k,node in packs.iteritems()]
     stats = [n for l,n in reversed(sorted(stats))]
     # but slip in anyone who's deps are met early
     stats2 = []
@@ -522,13 +525,13 @@ def prioritized(packs):
     for n in (n for n in stats if n not in plotted):
         stats2.append(n)
         plotted.add(n)
-        deps_met = set(k for k,node in packs.items() if node.all <= plotted)
+        deps_met = set(k for k,node in packs.iteritems() if node.all <= plotted)
         stats2.extend(deps_met - plotted)
         plotted.update(deps_met)
     return stats2
 
 def ran_rad():
-    return random() * 2 * math.pi
+    return random() * tau
 
 def bbox(center, dim):
     c,d = center,dim
@@ -584,13 +587,13 @@ def link_pull(name, origin_n, packs):
         centers = [(-x,-y) for x,y in centers]
     return map(sum, zip(*centers))
 
-def xy2rad(x,y):
+def xy2rad(x, y):
     if (x,y) == (0,0):
         return ran_rad()
     return math.atan2(y,x)
 
-def pol2xy(o,a,r):
-    return int(o[0]+r*math.cos(a)), int(o[1]+r*math.sin(a))
+def pol2xy(o, a, r):
+    return int(o[0] + r * cos(a)), int(o[1] + r * sin(a))
 
 def pt2dim(name, pt):
     x_scale = 0.65
@@ -623,6 +626,19 @@ def search(cd, origin, heading, scale, rt):
         if probe(r+step//2):
             return search2(step//2, r+step//2)
         return search2(step*2, r+step*2)
+    def search3(step, r):
+        s2 = step // 2
+        if probe(r - s2):
+            if step < scale:
+                return r-s2
+            else:
+                return search3(s2, r-s2)
+        if probe(r + s2):
+            step = s2
+        else:
+            step *= 2
+        return search3(step, r + step)
+    #return search3(scale*40, scale*40), history
     return search2(scale*5, scale*5), history
 
 def place(packs, detail=False):
@@ -653,12 +669,12 @@ def place(packs, detail=False):
             yield name, center
     #print rt.show()
 
-def offset_coord(c,d):
+def offset_coord(c, d):
     "corrects textbox origin"
     return c[0]-d[0]//2, c[1]  #+d[1]//2
 
 def xml_wrap(tag, inner=None, **kwargs):
-    kw = ' '.join('%s="%s"' % (k, str(v)) for k,v in kwargs.items())
+    kw = ' '.join('%s="%s"' % (str(k), str(v)) for k,v in kwargs.iteritems())
     if inner is None:
         return '<%s %s/>' % (tag, kw)
     return '<%s %s>%s</%s>' % (tag, kw, inner, tag)
@@ -674,7 +690,7 @@ def control_point(p1, p2, drop=None):
 def quad_spline(p1, p2):
     "boofor DSL in XML"
     c = control_point(p1, p2)
-    return 'M%i,%i Q%i,%i %i,%i' % (p1+c+p2)
+    return 'M%i,%i Q%i,%i %i,%i' % (p1 + c + p2)
 
 def svg_text(node):
     p = offset_coord(*node.cd)
@@ -694,9 +710,9 @@ def all_points(packs):
 def recenter(packs, points):
     "shift everything into quadrant 1"
     min_x,min_y = map(min, zip(*points))
-    for name in packs:
-        p = packs[name].center
-        packs[name].center = p[0]-min_x, p[1]-min_y
+    for node in packs.itervalues():
+        p = node.center
+        node.center = p[0]-min_x, p[1]-min_y
     return packs
 
 def window_size(points):
@@ -808,7 +824,7 @@ def human_si(number):
 
 def console_dump(tree):
     options, args = parse()
-    stat_line = human_si(sum(v.size for k,v in tree.items()))
+    stat_line = human_si(sum(v.size for k,v in tree.iteritems()))
     print 'Total size:', stat_line
     if options.use_compression:
         tops = toplevel_packs(tree)
@@ -831,8 +847,7 @@ def secondlevel_sizes(tree):
         aboves = tree[s].inverse & tops  # lazy!
         size = tree[s].size + sum(tree[i].size for i in aboves)
         sec_info.append((size/len(aboves), s, size, aboves))
-    sec_info.sort()
-    sec_info.reverse()
+    sec_info.sort(reverse=True)
     for null, s, size, aboves in sec_info:
         print '%s: %s ' % (s, human_si(size))
         print '\t', ' '.join(sorted(aboves))
@@ -858,8 +873,8 @@ def main():
     if options.mode == 'ipkg':
         tree = debian.local_load(status_path='/usr/lib/ipkg/status')
         # ipkg reports bytes, not KB
-        for n,p in tree.items():
-            p.size = p.size / 1024
+        for node in tree.itervalues():
+            node.size /= 1024
     stat_line = human_si(sum(v.size for k,v in tree.items()))
     if options.rip:
         open(filename + '.txt', 'w').write(repr(tree))
