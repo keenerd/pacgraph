@@ -261,6 +261,7 @@ class Crux(object):
     def find_deps(self, package):
         return call_stdout('finddeps %s' % package)
     def local_load(self):
+        "unfinished"
         tree = {}
         all_packages = []
         for name in all_packages:
@@ -824,7 +825,7 @@ def human_si(number):
 
 def console_dump(tree):
     options, args = parse()
-    stat_line = human_si(sum(v.size for k,v in tree.iteritems()))
+    stat_line = human_si(sum(node.size for node in tree.itervalues()))
     print 'Total size:', stat_line
     if options.use_compression:
         tops = toplevel_packs(tree)
