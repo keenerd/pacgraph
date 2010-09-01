@@ -408,9 +408,9 @@ def merge(*boxes):
 def area(box):
     return box[2]-box[0] * box[3]-box[1]
 
-def smallest_merge(rt_nodes, box):
+def smallest_merge(nodes, box):
     "return best node from nodes"
-    return min((area(merge(n.box, box)), n) for n in rt_nodes)[1]
+    return min((area(merge(n.box, box)), area(n.box), n) for n in nodes)[2]
 
 def full_deps(package, tree, reverse=False):
     "returns every package in dep tree"
