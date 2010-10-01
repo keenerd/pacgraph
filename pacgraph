@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import math, subprocess, os, cProfile, optparse
+import math, subprocess, os, cProfile, optparse, copy
 from random import random, randint
 from itertools import *
 from collections import deque, defaultdict
@@ -399,6 +399,35 @@ class Rtree(object):
     def delete(self, box):
         "Not implemented."
         raise
+    def unbalance(self):
+        "histogram of how messed up things are"
+        hist = dict((i,0) for i in range(100))
+        stack = [[self]]
+        depth = 0
+        while stack:
+            if not stack[-1]:
+                depth -= 1
+                stack.pop()
+                continue
+            c = stack[-1].pop()
+            assert bool(c.name) ^ bool(c.children)
+            if c.name:
+                hist[depth] += 1
+            else:
+                stack.append(c.children)
+                depth += 1
+        return dict((k,v) for k,v in hist.iteritems() if v)
+    def leafiness(self):
+        "histogram of branch size"
+        hist = dict((i,0) for i in range(100))
+        stack = [self]
+        while stack:
+            c = stack.pop()
+            if c.name:
+                continue
+            hist[len(c.children)] += 1
+            stack.extend(c.children)
+        return dict((k,v) for k,v in hist.iteritems() if v)
 
 def merge(*boxes):
     "new box surrounding inputs"
@@ -669,6 +698,8 @@ def place(packs, detail=False):
         else:
             yield name, center
     #print rt.show()
+    #print copy.deepcopy(rt).unbalance()
+    #print copy.deepcopy(rt).leafiness()
 
 def offset_coord(c, d):
     "corrects textbox origin"
