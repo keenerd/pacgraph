@@ -97,6 +97,9 @@ def color_text(name, color):
 
 def hilite(event, name, selected):
     loaded = set(cant)
+    if not name:
+        [color_text(l, 'uns') for l in cant]
+        return
     if selected:
         color_text(name, 'sel')
         for l in cant[name].links & loaded:
@@ -111,17 +114,17 @@ def hilite(event, name, selected):
 def sync_place():
     "requires an existing place_iter"
     global cant
+    hilite(None, None, False)
     motion.offset = origin()
-    placed = []
     frame_delay = 30  # milliseconds
     try:
         name, centers = place_iter.next()
     except StopIteration:
         return
-    placed.append(name)
     node = tree[name]
+    center = centers[-1]
     motion.history.append((name, centers))
-    lines = [(center, cant[l].center) for l in set(placed) & node.all]
+    lines = [(center, cant[l].center) for l in set(cant) & node.all]
     node.lines_tk = []
     for line in lines:
         l = Container()
@@ -132,30 +135,23 @@ def sync_place():
         canvas.tag_lower(l.tk)
         node.lines_tk.append(l)
     p = node.font_pt
-    center = centers[0]
-    node.center = centers[0]
+    node.center = center
     tkcenter = zoom_shift((center[0], center[1]+p//4))
     node.tk = canvas.create_text(
             tkcenter[0], tkcenter[1], 
             text=name, anchor=tk.S, fill=colors['sel'], 
             font=('Monospace', str(max(1, int(p*0.4*motion.scale)))))
     cant[name] = node
+    # add some color
     hilite(None, name, True)
-    for center in centers:
-        cant[name].center = center
-        tkcenter = zoom_shift((center[0], center[1]+p//4))
-        for line in cant[name].lines_tk:
-            line.p = tkcenter + line.p[2:]
-            canvas.coords(line.tk, tkcenter + zoom_shift(line.p[2:]))
-        canvas.itemconfig(cant[name].tk, fill=colors['bg'])
-        canvas.coords(cant[name].tk, tkcenter)
-        canvas.itemconfig(cant[name].tk, fill=colors['sel'])
-    if len(placed) >= 2:
-        hilite(None, placed[-2], False)
+    cant[name].center = center
+    #canvas.itemconfig(cant[name].tk, fill=colors['bg'])
+    canvas.coords(cant[name].tk, tkcenter)
+    #canvas.itemconfig(cant[name].tk, fill=colors['sel'])
     n = name
     canvas.tag_bind(cant[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
     canvas.tag_bind(cant[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
-    hilite(None, placed[-1], False)
+    #hilite(None, name, False)
     canvas.after(frame_delay, sync_place)
 
 def main():
