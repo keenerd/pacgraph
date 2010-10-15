@@ -1,8 +1,8 @@
 #! /usr/bin/env python
 
-dev = False
+dev = True
 
-from Tkinter import *
+import Tkinter as tk
 from multiprocessing import Process
 import sys, threading, Queue, time
 
@@ -38,14 +38,14 @@ class Motion(object):
             return
         mdx = event.x - self.mouse[0]
         mdy = event.y - self.mouse[1]
-        canvas.move(ALL, mdx, mdy)
+        canvas.move(tk.ALL, mdx, mdy)
         self.mouse = (event.x, event.y)
         self.offset = xy_add(self.offset, (mdx, mdy), self.scale**(-1))
     def zoom(self, event, factor):
         self.scale *= factor
         new_p = lambda p: str(max(1, int(p * 0.4 * self.scale)))
         cx,cy = origin()
-        canvas.scale(ALL, cx, cy, factor, factor)
+        canvas.scale(tk.ALL, cx, cy, factor, factor)
         for n,v in list(cant.items()):
             canvas.itemconfig(v.tk, font=('Monospace', new_p(v.font_pt)))
     def zoom_in(self, event):
@@ -108,60 +108,58 @@ def hilite(event, name, selected):
         for l in cant[name].all & loaded:
             color_text(l, 'uns')
 
-def async_place(tree):
-    "This is a horrible idea."
-    global canvas, cant, motion
+def sync_place():
+    "requires an existing place_iter"
+    global cant
     motion.offset = origin()
     placed = []
-    cant = {}
-    frame_delay = 0.03  # seconds
-    prev_frame = time.time()
-    for name, centers in pacgraph.place(tree, detail=True):
-        placed.append(name)
-        node = tree[name]
-        motion.history.append((name, centers))
-        lines = [(center, cant[l].center) for l in set(placed) & node.all]
-        node.lines_tk = []
-        for line in lines:
-            l = Container()
-            l.p = line[0] + line[1]
-            l.c = colors['line']
-            lp2 = zoom_shift(line[0]) + zoom_shift(line[1])
-            l.tk = canvas.create_line(lp2, fill=l.c)
-            canvas.tag_lower(l.tk)
-            node.lines_tk.append(l)
-        p = node.font_pt
-        center = centers[0]
-        node.center = centers[0]
+    frame_delay = 30  # milliseconds
+    try:
+        name, centers = place_iter.next()
+    except StopIteration:
+        return
+    placed.append(name)
+    node = tree[name]
+    motion.history.append((name, centers))
+    lines = [(center, cant[l].center) for l in set(placed) & node.all]
+    node.lines_tk = []
+    for line in lines:
+        l = Container()
+        l.p = line[0] + line[1]
+        l.c = colors['line']
+        lp2 = zoom_shift(line[0]) + zoom_shift(line[1])
+        l.tk = canvas.create_line(lp2, fill=l.c)
+        canvas.tag_lower(l.tk)
+        node.lines_tk.append(l)
+    p = node.font_pt
+    center = centers[0]
+    node.center = centers[0]
+    tkcenter = zoom_shift((center[0], center[1]+p//4))
+    node.tk = canvas.create_text(
+            tkcenter[0], tkcenter[1], 
+            text=name, anchor=tk.S, fill=colors['sel'], 
+            font=('Monospace', str(max(1, int(p*0.4*motion.scale)))))
+    cant[name] = node
+    hilite(None, name, True)
+    for center in centers:
+        cant[name].center = center
         tkcenter = zoom_shift((center[0], center[1]+p//4))
-        node.tk = canvas.create_text(
-                tkcenter[0], tkcenter[1], 
-                text=name, anchor=S, fill=colors['sel'], 
-                font=('Monospace', str(max(1, int(p*0.4*motion.scale)))))
-        cant[name] = node
-        hilite(None, name, True)
-        for center in centers:
-            cant[name].center = center
-            tkcenter = zoom_shift((center[0], center[1]+p//4))
-            for line in cant[name].lines_tk:
-                line.p = tkcenter + line.p[2:]
-                canvas.coords(line.tk, tkcenter + zoom_shift(line.p[2:]))
-            canvas.itemconfig(cant[name].tk, fill=colors['bg'])
-            canvas.coords(cant[name].tk, tkcenter)
-            canvas.itemconfig(cant[name].tk, fill=colors['sel'])
-            pause = prev_frame + frame_delay - time.time()
-            if pause > 0:
-                time.sleep(pause)
-            prev_frame = time.time()
-        if len(placed) >= 2:
-            hilite(None, placed[-2], False)
-        n = name
-        canvas.tag_bind(cant[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
-        canvas.tag_bind(cant[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
+        for line in cant[name].lines_tk:
+            line.p = tkcenter + line.p[2:]
+            canvas.coords(line.tk, tkcenter + zoom_shift(line.p[2:]))
+        canvas.itemconfig(cant[name].tk, fill=colors['bg'])
+        canvas.coords(cant[name].tk, tkcenter)
+        canvas.itemconfig(cant[name].tk, fill=colors['sel'])
+    if len(placed) >= 2:
+        hilite(None, placed[-2], False)
+    n = name
+    canvas.tag_bind(cant[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
+    canvas.tag_bind(cant[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
     hilite(None, placed[-1], False)
+    canvas.after(frame_delay, sync_place)
 
 def main():
-    global canvas, tree, motion, cant
+    global canvas, tree, motion, cant, place_iter
     arch = pacgraph.Arch()
     if len(sys.argv) == 1:
         print 'Loading local repo.'
@@ -173,17 +171,13 @@ def main():
     tree = pacgraph.pt_sizes(tree, 10, 100)
     print 'Hover, drag, scroll and type to control.'
     
-    root = Tk()
-    canvas = Canvas(root, bg=colors['bg'])
-    canvas.pack(expand=1, fill=BOTH)
+    root = tk.Tk()
+    canvas = tk.Canvas(root, bg=colors['bg'])
+    canvas.pack(expand=1, fill=tk.BOTH)
     canvas.tk_focusFollowsMouse()
     motion = Motion()
     cant = {}
    
-    #ap = Process(target=async_place)
-    ap = threading.Timer(3.0, async_place, args=[tree])
-    ap.start()
-    
     canvas.bind('<B1-Motion>', motion.drag)
     canvas.bind('<ButtonRelease-1>', motion.button_up)
     canvas.bind('<B2-Motion>', motion.drag)
@@ -194,7 +188,8 @@ def main():
     canvas.bind('<Button-5>', motion.zoom_out)
     canvas.bind('<Key>', motion.search)
     
+    place_iter = pacgraph.place(tree, detail=True)
+    sync_place()
     root.mainloop()
-    ap.join()
 
 main()
