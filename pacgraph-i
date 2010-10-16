@@ -11,13 +11,14 @@ if not dev:
     imp.load_source('pacgraph', '/usr/bin/pacgraph')
 import pacgraph
 
-colors = {'sel' : '#000',
-          'uns' : '#888',
-          'dep' : '#008',
-          'req' : '#00F',
-          'bg'  : '#FFF',
-          'line': '#DDD',
-          'dot' : '#F00',
+colors = {'sel'  : '#000',
+          'uns'  : '#888',
+          'dep'  : '#008',
+          'req'  : '#00F',
+          'bg'   : '#FFF',
+          'line' : '#DDD',
+          'line2': '#777',
+          'dot'  : '#F00',
           }
 
 # UI thoughts:
@@ -110,12 +111,15 @@ def color_text(name, color):
 
 def hilite(event, name, selected):
     loaded = set(cant)
+    ci = canvas.itemconfig
     if not name:
         [color_text(l, 'uns') for l in cant]
-        canvas.itemconfig('dot', fill='', outline='')
+        ci('dot', fill='', outline='')
+        ci('line', fill=colors['line'])
         return
     if selected:
-        [canvas.itemconfig(i, fill=colors['dot'], outline=colors['dot']) for i in cant[name].dots_tk]
+        [ci(i, fill=colors['dot'], outline=colors['dot']) for i in cant[name].dots_tk]
+        [ci(i.tk, fill=colors['line2']) for i in cant[name].lines_tk]
         color_text(name, 'sel')
         for l in cant[name].links & loaded:
             color_text(l, 'dep')
@@ -125,12 +129,13 @@ def hilite(event, name, selected):
         color_text(name, 'uns')
         for l in cant[name].all & loaded:
             color_text(l, 'uns')
-        [canvas.itemconfig(i, fill='', outline='') for i in cant[name].dots_tk]
+        [ci(i, fill='', outline='') for i in cant[name].dots_tk]
+        [ci(i.tk, fill=colors['line']) for i in cant[name].lines_tk]
 
 def sync_place():
     "requires an existing place_iter"
     global cant
-    frame_delay = 30  # milliseconds
+    frame_delay = 10  # milliseconds
     hilite(None, None, False)
     try:
         name, centers = place_iter.next()
@@ -143,17 +148,19 @@ def sync_place():
     node = tree[name]
     center = centers[-1]
     motion.history.append((name, centers))
-    lines = [(center, cant[l].center) for l in set(cant) & node.all]
+    lines = [(center, cant[l].center, l) for l in set(cant) & node.all]
     node.lines_tk = []
     node.dots_tk = []
     for line in lines:
         l = Container()
+        n = line[2]
         l.p = line[0] + line[1]
         l.c = colors['line']
         lp2 = zoom_shift(line[0]) + zoom_shift(line[1])
-        l.tk = canvas.create_line(lp2, fill=l.c)
+        l.tk = canvas.create_line(lp2, tag='line', fill=l.c)
         canvas.tag_lower(l.tk)
         node.lines_tk.append(l)
+        cant[n].lines_tk.append(l)
     for c in centers:
         tkc = zoom_shift(c)
         d = canvas.create_oval(tkc+tkc, tags='dot', fill=colors['dot'], outline=colors['dot'])
@@ -185,6 +192,7 @@ def main():
     print 'Preparing %i nodes.' % len(tree)
     tree = pacgraph.pt_sizes(tree, 10, 100)
     print 'Hover, drag, scroll and type to control.'
+    print 'Red dots are the path taken to find empty space.'
     
     root = tk.Tk()
     canvas = tk.Canvas(root, bg=colors['bg'])
