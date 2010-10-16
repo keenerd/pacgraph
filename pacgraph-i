@@ -128,11 +128,15 @@ def sync_place():
     "requires an existing place_iter"
     global cant
     frame_delay = 30  # milliseconds
+    canvas.delete('dots')
     hilite(None, None, False)
-    # clear old dots
     try:
         name, centers = place_iter.next()
     except StopIteration:
+        # zoom is broken during the animation
+        # so be lame and don't enable until now
+        canvas.bind('<Button-4>', motion.zoom_in)
+        canvas.bind('<Button-5>', motion.zoom_out)
         return
     node = tree[name]
     center = centers[-1]
@@ -147,6 +151,9 @@ def sync_place():
         l.tk = canvas.create_line(lp2, fill=l.c)
         canvas.tag_lower(l.tk)
         node.lines_tk.append(l)
+    for c in centers:
+        tkc = zoom_shift(c)
+        canvas.create_oval(tkc+tkc, tags='dots', fill=colors['dot'], outline=colors['dot'])
     p = node.font_pt
     node.center = center
     tkcenter = zoom_shift((center[0], center[1]+p//4))
@@ -155,8 +162,6 @@ def sync_place():
             text=name, anchor=tk.S, fill=colors['sel'], 
             font=('Monospace', str(max(1, int(p*0.4*motion.scale)))))
     cant[name] = node
-    # add some color
-    # for c in centers, draw dots
     hilite(None, name, True)
     cant[name].center = center
     n = name
@@ -190,8 +195,8 @@ def main():
     canvas.bind('<ButtonRelease-2>', motion.button_up)
     canvas.bind('<B3-Motion>', motion.drag)
     canvas.bind('<ButtonRelease-3>', motion.button_up)
-    canvas.bind('<Button-4>', motion.zoom_in)
-    canvas.bind('<Button-5>', motion.zoom_out)
+    #canvas.bind('<Button-4>', motion.zoom_in)
+    #canvas.bind('<Button-5>', motion.zoom_out)
     canvas.bind('<Key>', motion.search)
     canvas.bind('<Configure>', motion.resize)
     
