@@ -112,8 +112,10 @@ def hilite(event, name, selected):
     loaded = set(cant)
     if not name:
         [color_text(l, 'uns') for l in cant]
+        canvas.itemconfig('dot', fill='', outline='')
         return
     if selected:
+        [canvas.itemconfig(i, fill=colors['dot'], outline=colors['dot']) for i in cant[name].dots_tk]
         color_text(name, 'sel')
         for l in cant[name].links & loaded:
             color_text(l, 'dep')
@@ -123,12 +125,12 @@ def hilite(event, name, selected):
         color_text(name, 'uns')
         for l in cant[name].all & loaded:
             color_text(l, 'uns')
+        [canvas.itemconfig(i, fill='', outline='') for i in cant[name].dots_tk]
 
 def sync_place():
     "requires an existing place_iter"
     global cant
     frame_delay = 30  # milliseconds
-    canvas.delete('dots')
     hilite(None, None, False)
     try:
         name, centers = place_iter.next()
@@ -143,6 +145,7 @@ def sync_place():
     motion.history.append((name, centers))
     lines = [(center, cant[l].center) for l in set(cant) & node.all]
     node.lines_tk = []
+    node.dots_tk = []
     for line in lines:
         l = Container()
         l.p = line[0] + line[1]
@@ -153,7 +156,8 @@ def sync_place():
         node.lines_tk.append(l)
     for c in centers:
         tkc = zoom_shift(c)
-        canvas.create_oval(tkc+tkc, tags='dots', fill=colors['dot'], outline=colors['dot'])
+        d = canvas.create_oval(tkc+tkc, tags='dot', fill=colors['dot'], outline=colors['dot'])
+        node.dots_tk.append(d)
     p = node.font_pt
     node.center = center
     tkcenter = zoom_shift((center[0], center[1]+p//4))
