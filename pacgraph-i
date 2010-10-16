@@ -44,9 +44,12 @@ class Motion(object):
         self.moveall(mdx, mdy)
     def moveall(self, dx, dy):
         canvas.move(tk.ALL, dx, dy)
-        self.offset = xy_add(self.offset, (dx, dy), self.scale**(-1))
+        scaled = xy_add((dx,dy), (0,0), self.scale)
+        self.offset = xy_add(scaled, self.offset, 1.0)
     def zoom(self, event, factor):
+        # buggy?
         self.scale *= factor
+        #self.offset = xy_add(self.offset, (0,0), factor)
         new_p = lambda p: str(max(1, int(p * 0.4 * self.scale)))
         cx,cy = origin()
         canvas.scale(tk.ALL, cx, cy, factor, factor)
@@ -71,7 +74,7 @@ class Motion(object):
         ks = event.keysym
         c = event.char
         matches = []
-        if ks in ['space', 'BackBpace', 'Escape', 'Delete', 'Return']:
+        if ks in ['space', 'BackSpace', 'Escape', 'Delete', 'Return']:
             self.typed = ''
         if c.isalpha():
             self.typed += c
@@ -91,10 +94,11 @@ def origin():
 
 def xy_add(p1, p2, scale=1.0):
     "add two and scale points"
-    return (p1[0]+p2[0]) / scale, (p1[1]+p2[1]) / scale
+    return (p1[0]+p2[0]) * scale, (p1[1]+p2[1]) * scale
 
 def zoom_shift(p):
     "real coords -> canvas coords"
+    # buggy?
     px,py = p
     ox,oy = motion.offset
     cx,cy = origin()
@@ -126,7 +130,6 @@ def sync_place():
     frame_delay = 30  # milliseconds
     hilite(None, None, False)
     # clear old dots
-    motion.offset = origin()
     try:
         name, centers = place_iter.next()
     except StopIteration:
