@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-dev = True
+dev = False
 
 import Tkinter as tk
 from multiprocessing import Process
