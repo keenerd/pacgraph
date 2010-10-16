@@ -16,12 +16,13 @@ colors = {'sel' : '#000',
           'dep' : '#008',
           'req' : '#00F',
           'bg'  : '#FFF',
-          'line': '#DDD'}
+          'line': '#DDD',
+          'dot' : '#F00',
+          }
 
 # UI thoughts:
 # hold right plays detailed history
 # right drag fast moves ahead/back in history
-
 
 class Motion(object):
     def __init__(self):
@@ -30,6 +31,7 @@ class Motion(object):
         self.typed = ''      # keyboard search buffer
         self.offset = (0,0)  # unzoomed coords
         self.history = []    # list of (package, [coords])
+        self.size = canvas.winfo_width(), canvas.winfo_height()
     def button_up(self, event):
         self.mouse = None
     def drag(self, event):
@@ -38,9 +40,11 @@ class Motion(object):
             return
         mdx = event.x - self.mouse[0]
         mdy = event.y - self.mouse[1]
-        canvas.move(tk.ALL, mdx, mdy)
         self.mouse = (event.x, event.y)
-        self.offset = xy_add(self.offset, (mdx, mdy), self.scale**(-1))
+        self.moveall(mdx, mdy)
+    def moveall(self, dx, dy):
+        canvas.move(tk.ALL, dx, dy)
+        self.offset = xy_add(self.offset, (dx, dy), self.scale**(-1))
     def zoom(self, event, factor):
         self.scale *= factor
         new_p = lambda p: str(max(1, int(p * 0.4 * self.scale)))
@@ -56,6 +60,11 @@ class Motion(object):
         if self.scale*0.8 < 0.1:
             return
         self.zoom(event, 0.8)
+    def resize(self, event):
+        dx = event.width  - self.size[0]
+        dy = event.height - self.size[1]
+        self.moveall(dx//2, dy//2)
+        self.size = event.width, event.height
     def search(self, event):
         # prototype, eventually zoom-to-fit typed matches
         #print event.char, event.keysym, event.keycode
@@ -114,9 +123,10 @@ def hilite(event, name, selected):
 def sync_place():
     "requires an existing place_iter"
     global cant
-    hilite(None, None, False)
-    motion.offset = origin()
     frame_delay = 30  # milliseconds
+    hilite(None, None, False)
+    # clear old dots
+    motion.offset = origin()
     try:
         name, centers = place_iter.next()
     except StopIteration:
@@ -143,15 +153,12 @@ def sync_place():
             font=('Monospace', str(max(1, int(p*0.4*motion.scale)))))
     cant[name] = node
     # add some color
+    # for c in centers, draw dots
     hilite(None, name, True)
     cant[name].center = center
-    #canvas.itemconfig(cant[name].tk, fill=colors['bg'])
-    canvas.coords(cant[name].tk, tkcenter)
-    #canvas.itemconfig(cant[name].tk, fill=colors['sel'])
     n = name
     canvas.tag_bind(cant[n].tk, '<Enter>', lambda e, n=n: hilite(e, n, True))
     canvas.tag_bind(cant[n].tk, '<Leave>', lambda e, n=n: hilite(e, n, False))
-    #hilite(None, name, False)
     canvas.after(frame_delay, sync_place)
 
 def main():
@@ -183,9 +190,10 @@ def main():
     canvas.bind('<Button-4>', motion.zoom_in)
     canvas.bind('<Button-5>', motion.zoom_out)
     canvas.bind('<Key>', motion.search)
+    canvas.bind('<Configure>', motion.resize)
     
     place_iter = pacgraph.place(tree, detail=True)
-    sync_place()
+    canvas.after(500, sync_place)
     root.mainloop()
 
 main()
