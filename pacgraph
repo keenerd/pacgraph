@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import math, subprocess, os, cProfile, optparse, copy
+import math, subprocess, os, cProfile, optparse, copy, tarfile
 from random import random, randint
 from itertools import *
 from collections import deque, defaultdict
@@ -89,6 +89,24 @@ class Arch(object):
         else:
             info['REASON'] = False
         return name, info
+
+    def load_tarball(self, tgz):
+        db = tarfile.open(tgz)
+        packages = defaultdict(dict)
+        for member in db.getmembers():
+            if not member.isfile():
+                continue
+            path = member.name
+            raw = db.extractfile(member)
+            name,sub = os.path.split(path)
+            packages[name][sub] = raw
+        tree = {}
+        for p in packages.itervalues():
+            info = {}
+            [info.update(self.load_info(v)) for v in p.values()]
+            name,info = self.strip_info(info)
+            tree[name] = info
+        return tree
     
     def load_tree(self, dirs):
         dirs = set(filter(os.path.isdir, dirs))
@@ -103,6 +121,8 @@ class Arch(object):
                 info.update(self.load_info(arch_file))
                 name, info = self.strip_info(info)
                 tree[name] = info
+            except KeyboardInterrupt:
+                raise
             except:
                 print 'Error reading package', p
         return tree
