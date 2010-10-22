@@ -942,7 +942,7 @@ def main():
         return  # after first success
     print 'No way to convert SVG to PNG.'
     print 'Inkscape, svg2png or imagemagick would be nice.'
-    print 'Alternatives: "pacgraph-i" or "pacgraph --console".'
+    print 'Alternatives: "pacgraph-tk" or "pacgraph --console".'
     print
     console_dump(tree)
 
