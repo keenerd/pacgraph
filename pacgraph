@@ -4,7 +4,7 @@ import math, subprocess, os, optparse, copy, tarfile
 from random import random, randint
 from itertools import *
 from collections import deque, defaultdict
-from math import cos, sin, atan2
+from math import cos, sin, atan2, hypot
 tau = math.pi * 2
 pj = os.path.join
 
@@ -656,8 +656,10 @@ def best_origin(name, pri_hist, packs):
         return pri_hist[0]  # root package
     return max((packs[n].size, n) for n in possible)[1]
 
+# add search_hyperbola and means of switching
+
 def search(cd, origin, heading, scale, rt):
-    "binary search recursive closure thingy, returns radius"
+    "linear binary search recursive closure thingy, returns radius"
     history = []
     def probe(r):
         "returns true if clear"
@@ -679,6 +681,31 @@ def search(cd, origin, heading, scale, rt):
             step *= 2
         return search3(step, r + step)
     return search3(scale, scale), history
+
+def search_spiral(cd, origin, scale, rt, step=5, aspect=0.5):
+    "returns angle, radius, history"
+    # step controls speed/granularity
+    # really should be a logarithmic spiral
+    # spiral aspect -> final aspect... holy grail?
+    history = []
+    def probe(heading, r):
+        "returns true if clear"
+        cd[0] = pol2xy(origin, heading, r)
+        history.append(cd[0])
+        bb1 = bbox(*cd)
+        return not any(rt.search(bb1))
+    angle = ran_rad()
+    r = scale
+    while not probe(angle, r):
+        x = cos(angle) * r
+        y = sin(angle) * r
+        m = angle + tau/4
+        x += cos(m) * scale * step / aspect
+        y += sin(m) * scale * step
+        angle = xy2rad(x, y)
+        r = hypot(x, y)
+    return angle, r, history
+
 
 def place(packs, detail=False):
     "radial placement algo, returns non-overlapping coords"
@@ -702,11 +729,12 @@ def place(packs, detail=False):
         origin_name = best_origin(name, pri_cache, packs)
         #print 'placing', name, 'around', origin_name
         origin = packs[origin_name].center
-        heading = xy2rad(*link_pull(name, origin_name, packs))
-        # unplaced links will need more room
+        # unplaced links and big text need more room
         scale = len(node.all-set(pri_cache))+1
         scale = max(scale, node.dim[1])
-        r,history = search(node.cd, origin, heading, scale, rt)
+        #heading = xy2rad(*link_pull(name, origin_name, packs))
+        #r,history = search(node.cd, origin, heading, scale, rt)
+        heading,r,history = search_spiral(node.cd, origin, scale, rt)
         center = pol2xy(origin, heading, r)
         rt.insert(bbox(center, packs[name].dim), name)
         if detail:
