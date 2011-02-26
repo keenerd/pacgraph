@@ -420,7 +420,7 @@ class Rtree(object):
         "Not implemented."
         raise
     def unbalance(self):
-        "histogram of how messed up things are"
+        "histogram of leaf depths"
         hist = dict((i,0) for i in range(100))
         stack = [[self]]
         depth = 0
@@ -666,14 +666,6 @@ def search(cd, origin, heading, scale, rt):
         bb1 = bbox(*cd)
         #return not any(rt.search_cache(bb1))
         return not any(rt.search(bb1))
-    def search2(step, r):
-        if probe(r-step//2):
-            if step < 8*scale:
-                return r-step//2
-            return search2(step//2, r-step//2)
-        if probe(r+step//2):
-            return search2(step//2, r+step//2)
-        return search2(step*2, r+step*2)
     def search3(step, r):
         s2 = step // 2
         if probe(r - s2):
@@ -686,8 +678,6 @@ def search(cd, origin, heading, scale, rt):
         else:
             step *= 2
         return search3(step, r + step)
-    #return search3(scale*40, scale*40), history
-    #return search2(scale*5, scale*5), history
     return search3(scale, scale), history
 
 def place(packs, detail=False):
