@@ -565,20 +565,19 @@ def pt_sizes(tree, min_pt=10, max_pt=100):
     return tree
 
 def prioritized(packs):
-    "returns list of names, sorted by priority"
+    "iter of names, sorted by priority"
     # first are the most central, with lots of links
     stats = [(len(node.all), k) for k,node in packs.iteritems()]
     stats = [n for l,n in reversed(sorted(stats))]
     # but slip in anyone who's deps are met early
-    stats2 = []
     plotted = set()
     for n in (n for n in stats if n not in plotted):
-        stats2.append(n)
+        yield n
         plotted.add(n)
         deps_met = set(k for k,node in packs.iteritems() if node.all <= plotted)
-        stats2.extend(deps_met - plotted)
         plotted.update(deps_met)
-    return stats2
+        for n2 in deps_met - plotted:
+            yield n2
 
 def ran_rad():
     return random() * tau
@@ -650,12 +649,11 @@ def pt2dim(name, pt):
     y_scale = 0.85
     return int(len(name)*pt*x_scale), int(pt*y_scale)
 
-def best_origin(name, pri, packs):
+def best_origin(name, pri_hist, packs):
     "returns largest sibling, or root"
-    possible = pri[:pri.index(name)]
-    possible = [n for n in possible if n in packs[name].all]
+    possible = [n for n in pri_hist if n in packs[name].all]
     if not possible:
-        return pri[0]  # root package
+        return pri_hist[0]  # root package
     return max((packs[n].size, n) for n in possible)[1]
 
 def search(cd, origin, heading, scale, rt):
@@ -696,23 +694,29 @@ def place(packs, detail=False):
     "radial placement algo, returns non-overlapping coords"
     # maybe try two different link_pulls for each placement?
     # maybe some control inversion to avoid queue checks?
-    pri = prioritized(packs)
+    pri_cache = []
+    def pri():
+        for p in prioritized(packs):
+            pri_cache.append(p)
+            yield p
+    prii = pri()
     rt = Rtree()
-    rt.insert(bbox((0,0), packs[pri[0]].dim), pri[0])
+    p = prii.next()
+    rt.insert(bbox((0,0), packs[p].dim), p)
     if detail:
-        yield pri[0], [(0,0)]
+        yield pri_cache[0], [(0,0)]
     else:
-        yield pri[0], (0,0)
-    for name in pri[1:]:
+        yield pri_cache[0], (0,0)
+    for name in prii:
         node = packs[name]
-        origin_name = best_origin(name, pri, packs)
+        origin_name = best_origin(name, pri_cache, packs)
         #print 'placing', name, 'around', origin_name
         origin = packs[origin_name].center
         heading = xy2rad(*link_pull(name, origin_name, packs))
         # unplaced links will need more room
-        scale = len(node.all-set(pri[:pri.index(name)]))+1
-        #r,history = search(node.cd, origin, heading, scale, rt)
-        r,history = search(node.cd, origin, heading, node.dim[1], rt)
+        scale = len(node.all-set(pri_cache))+1
+        scale = max(scale, node.dim[1])
+        r,history = search(node.cd, origin, heading, scale, rt)
         center = pol2xy(origin, heading, r)
         rt.insert(bbox(center, packs[name].dim), name)
         if detail:
