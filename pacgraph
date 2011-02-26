@@ -1,6 +1,6 @@
-#! /usr/bin/env python
+#! /usr/bin/env python2
 
-import math, subprocess, os, cProfile, optparse, copy, tarfile
+import math, subprocess, os, optparse, copy, tarfile
 from random import random, randint
 from itertools import *
 from collections import deque, defaultdict
@@ -689,7 +689,8 @@ def search(cd, origin, heading, scale, rt):
             step *= 2
         return search3(step, r + step)
     #return search3(scale*40, scale*40), history
-    return search2(scale*5, scale*5), history
+    #return search2(scale*5, scale*5), history
+    return search3(scale, scale), history
 
 def place(packs, detail=False):
     "radial placement algo, returns non-overlapping coords"
@@ -710,7 +711,8 @@ def place(packs, detail=False):
         heading = xy2rad(*link_pull(name, origin_name, packs))
         # unplaced links will need more room
         scale = len(node.all-set(pri[:pri.index(name)]))+1
-        r,history = search(node.cd, origin, heading, scale, rt)
+        #r,history = search(node.cd, origin, heading, scale, rt)
+        r,history = search(node.cd, origin, heading, node.dim[1], rt)
         center = pol2xy(origin, heading, r)
         rt.insert(bbox(center, packs[name].dim), name)
         if detail:
@@ -968,9 +970,11 @@ def main():
 
 if __name__ == "__main__":
     main()
-    #cProfile.run("main()", sort=1)
+    #import cProfile; cProfile.run("main()", sort=1)
 
 """
+choose centeral node by size/childs, instead of size?
+
 possible/future command line options
 
 -a  --add         packages
