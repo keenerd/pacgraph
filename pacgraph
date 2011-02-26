@@ -575,9 +575,9 @@ def prioritized(packs):
         yield n
         plotted.add(n)
         deps_met = set(k for k,node in packs.iteritems() if node.all <= plotted)
-        plotted.update(deps_met)
         for n2 in deps_met - plotted:
             yield n2
+        plotted.update(deps_met)
 
 def ran_rad():
     return random() * tau
