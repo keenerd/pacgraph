@@ -1,6 +1,6 @@
 #! /usr/bin/env python2
 
-import math, subprocess, os, optparse, copy, tarfile
+import os, copy, math, tarfile, optparse, subprocess
 from random import random, randint
 from itertools import *
 from collections import deque, defaultdict
@@ -53,12 +53,12 @@ def unrip(path):
     tree = eval(open(path).read())
     return bilink_tree(dict((p,Node(**n)) for p,n in tree.items()))
 
-def l_part(n, c):
-    return n.partition(c)[0]
-
 class Arch(object):
     def clean(self, n):
-        return reduce(l_part, '><:=', n.strip())
+        n = n.strip()
+        for c in '><:=':
+            n = n.partition(c)[0]
+        return n
     
     def load_info(self, arch_file):
         info = defaultdict(list)
@@ -143,7 +143,7 @@ class Arch(object):
                 if len(provides) > 1:
                     print 'warning: %s found in %s, assuming %s' % (pack, provides, provides[0])
                     errors[pack] = provides[0]
-                if len(provides) >= 1:
+                if provides:
                     installed.add(provides[0])
                 # len 0 means not installed optdep
             return list(installed)
@@ -383,7 +383,7 @@ class Rtree(object):
         if self.parent:
             self.parent.merge_up(self.box)
     def is_leaf_node(self):
-        return (not self.children) or bool(self.children[0].name)
+        return not self.children or bool(self.children[0].name)
     def choose_leaf(self, box):
         n = self
         while not n.is_leaf_node():
@@ -392,7 +392,7 @@ class Rtree(object):
     def adjust(self):
         if len(self.children) > self.bigm:
             self.overflow()
-        if self.parent and (len(self.children) < self.lilm):
+        if self.parent and len(self.children) < self.lilm:
             self.underflow()
     def divide_children(self):
         children2 = [c for c in self.children]
@@ -568,7 +568,7 @@ def prioritized(packs):
     "iter of names, sorted by priority"
     # first are the most central, with lots of links
     stats = [(len(node.all), k) for k,node in packs.iteritems()]
-    stats = [n for l,n in reversed(sorted(stats))]
+    stats = [n for l,n in sorted(stats, reverse=True)]
     # but slip in anyone who's deps are met early
     plotted = set()
     for n in (n for n in stats if n not in plotted):
@@ -590,26 +590,13 @@ def bbox(center, dim):
     y1,y2 = cy - dy   , cy + dy//3
     return [x1, y1, x2, y2] 
 
-def common_ranges(r1, r2):
-    "returns true if overlap"
-    if r1[0] < r2[0]:
-        return r1[1] > r2[0]
-    return r2[1] > r1[0]
+def in_box(bboxA, bboxB):
+    a1x,a2y,a3x,a4y = bboxA
+    b1x,b2y,b3x,b4y = bboxB
+    return (a3x > b1x if a1x<b1x else b3x>a1x) and (a4y > b2y if a2y<b2y else b4y>a2y)
 
-def in_box(bbox1, bbox2):
-    cr = common_ranges
-    r1x = bbox1[0::2]
-    r1y = bbox1[1::2]
-    r2x = bbox2[0::2]
-    r2y = bbox2[1::2]
-    return cr(r1x, r2x) and cr(r1y, r2y)
-
-def all_bboxes(name, packs, pri=None):
-    if pri is None:
-        name_list = packs.keys()
-    else:
-        name_list = pri[:pri.index(name)]
-    return [packs[n].box for n in name_list]
+def all_bboxes(packs):
+    return [packs[name].box for name in packs]
 
 def normalize(point, origin):
     "weighted"
@@ -769,16 +756,16 @@ def quad_spline(p1, p2):
     return 'M%i,%i Q%i,%i %i,%i' % (p1 + c + p2)
 
 def svg_text(node):
-    p = offset_coord(*node.cd)
-    kw = {'x':p[0], 'y':p[1], 'font-size':node.font_pt, 'fill':node.color}
-    return xml_wrap('text', node.name, **kw) 
+    x,y = offset_coord(node.center, node.dim)
+    kw = {'font-size': node.font_pt}
+    return xml_wrap('text', node.name, x=x, y=y, fill=node.color, **kw)
 
 def svg_spline(point1, point2):
     return xml_wrap('path', None, d=quad_spline(point1, point2))
 
 def all_points(packs):
     "slightly incomplete, guestimates the splines"
-    all_bb = flatten((bb[:2],bb[2:]) for bb in all_bboxes(None,packs))
+    all_bb = flatten((bb[:2],bb[2:]) for bb in all_bboxes(packs))
     all_endpoints = [(packs[p].center, packs[l].center) for p in packs for l in packs[p].all]
     all_controls = [control_point(ep[0], ep[1], 0.5) for ep in all_endpoints]
     return all_bb + all_controls
@@ -787,8 +774,8 @@ def recenter(packs, points):
     "shift everything into quadrant 1"
     min_x,min_y = map(min, zip(*points))
     for node in packs.itervalues():
-        p = node.center
-        node.center = p[0]-min_x, p[1]-min_y
+        x,y = node.center
+        node.center = x-min_x, y-min_y
     return packs
 
 def window_size(points):
@@ -916,8 +903,7 @@ def secondlevel_sizes(tree):
     # this is slightly lazy and only handles the common case
     # it ignores oddly shaped dep trees
     tops = toplevel_packs(tree)
-    seconds = set([])
-    [seconds.update(tree[t].links) for t in tops]
+    seconds = set(tree[t].links for t in tops)
     sec_info = []
     for s in seconds:
         aboves = tree[s].inverse & tops  # lazy!
