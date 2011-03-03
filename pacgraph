@@ -1,4 +1,4 @@
-#! /usr/bin/env python2
+#! /usr/bin/env python3
 
 import os, copy, math, tarfile, optparse, subprocess
 from random import random, randint
@@ -51,7 +51,7 @@ class MockOptions(object):
 def unrip(path):
     "path -> dict of Nodes"
     tree = eval(open(path).read())
-    return bilink_tree(dict((p,Node(**n)) for p,n in tree.items()))
+    return bilink_tree(dict((p,Node(**n)) for p,n in list(tree.items())))
 
 class Arch(object):
     def clean(self, n):
@@ -75,9 +75,9 @@ class Arch(object):
     
     def strip_info(self, info):
         keep = set(['DEPENDS', 'OPTDEPENDS', 'PROVIDES', 'SIZE', 'ISIZE', 'REASON'])
-        info = dict((k.strip('%'),v) for k,v in info.iteritems())
+        info = dict((k.strip('%'),v) for k,v in info.items())
         name = info['NAME'][0]
-        info = dict((k,v) for k,v in info.iteritems() if k in keep)
+        info = dict((k,v) for k,v in info.items() if k in keep)
         if 'ISIZE' in info:
             info['SIZE'] = info['ISIZE']
         if 'SIZE' in info:
@@ -101,9 +101,9 @@ class Arch(object):
             name,sub = os.path.split(path)
             packages[name][sub] = raw
         tree = {}
-        for p in packages.itervalues():
+        for p in packages.values():
             info = {}
-            [info.update(self.load_info(v)) for v in p.values()]
+            [info.update(self.load_info(v)) for v in list(p.values())]
             name,info = self.strip_info(info)
             tree[name] = info
         return tree
@@ -124,7 +124,7 @@ class Arch(object):
             except KeyboardInterrupt:
                 raise
             except:
-                print 'Error reading package', p
+                print('Error reading package', p)
         return tree
     
     def actually_installed_fn(self, tree):
@@ -141,7 +141,7 @@ class Arch(object):
                     continue
                 provides = sorted(p for p in p_tree if pack in p_tree[p])
                 if len(provides) > 1:
-                    print 'warning: %s found in %s, assuming %s' % (pack, provides, provides[0])
+                    print('warning: %s found in %s, assuming %s' % (pack, provides, provides[0]))
                     errors[pack] = provides[0]
                 if provides:
                     installed.add(provides[0])
@@ -155,7 +155,7 @@ class Arch(object):
         tree2 = {}
         actually_installed = self.actually_installed_fn(tree)
         # merge
-        for p,info in tree.iteritems():
+        for p,info in tree.items():
             tp = defaultdict(list, info)
             deps = tp['DEPENDS']
             if options.opt_deps:
@@ -181,7 +181,7 @@ class Arch(object):
         if not packages:
             return legal_links(compress_chains(bilink_tree(tree)))
         deps = [d for p in packages for d in full_deps(p, tree)]
-        tree2 = dict((k,v) for k,v in tree.iteritems() if k in deps)
+        tree2 = dict((k,v) for k,v in tree.items() if k in deps)
         return legal_links(bilink_tree(tree2))
 
 class Debian(object):
@@ -224,7 +224,7 @@ class Debian(object):
         return legal_links(tree)
     
     def repo_load(self):
-        print 'not implemented'
+        print('not implemented')
         raise
 
 class Redhat(object):
@@ -267,7 +267,7 @@ class Redhat(object):
         return legal_links(tree)
     
     def repo_load(self):
-        print 'not implemented'
+        print('not implemented')
         raise
 
 class Crux(object):
@@ -301,7 +301,7 @@ class Textfile(object):
         for line in open(filename):
             words = line.split()
             node = words[0]
-            size = float(words[1])
+            size = int(words[1])
             links = words[2:]
             tree[node] = Node(name=node, size=size, links=set(links))
         return tree
@@ -436,7 +436,7 @@ class Rtree(object):
             else:
                 stack.append(c.children)
                 depth += 1
-        return dict((k,v) for k,v in hist.iteritems() if v)
+        return dict((k,v) for k,v in hist.items() if v)
     def leafiness(self):
         "histogram of branch size"
         hist = dict((i,0) for i in range(100))
@@ -447,12 +447,12 @@ class Rtree(object):
                 continue
             hist[len(c.children)] += 1
             stack.extend(c.children)
-        return dict((k,v) for k,v in hist.iteritems() if v)
+        return dict((k,v) for k,v in hist.items() if v)
 
 def merge(*boxes):
     "new box surrounding inputs"
     fns = (min, min, max, max)
-    return tuple(f(p) for f,p in zip(fns, zip(*boxes)))
+    return tuple(f(p) for f,p in zip(fns, list(zip(*boxes))))
 
 def area(box):
     return box[2]-box[0] * box[3]-box[1]
@@ -501,7 +501,7 @@ def compress_chains(tree):
     while True:
         singles = single_depends(tree, options.preserve_explicit)
         try:
-            s = singles.next()
+            s = next(singles)
         except StopIteration:
             return tree
         parent = list(tree[s].inverse)[0]
@@ -541,40 +541,40 @@ def packs_by_size(tree, pack_list):
 def legal_links(tree):
     "removes/reports dangling references"
     valid = set(tree)
-    for k,v in tree.iteritems():
+    for k,v in tree.items():
         invalid1 = v.links - valid
         invalid2 = v.inverse - valid
         if invalid1:
-            print 'error: unknown', list(invalid1), 'in', k 
+            print('error: unknown', list(invalid1), 'in', k) 
             v.links = v.links - invalid1
         if invalid2:
-           print 'error: unknown', list(invalid2), 'in', k
+           print('error: unknown', list(invalid2), 'in', k)
            v.inverse = v.inverse - invalid2
     return tree
 
-#print 'worst shared packages:', biggest_packs(tree)[:20]
-#print 'most crucial packages:', biggest_packs(invert_tree(tree))[:20]
+#print('worst shared packages:', biggest_packs(tree)[:20])
+#print('most crucial packages:', biggest_packs(invert_tree(tree))[:20])
 
 def pt_sizes(tree, min_pt=10, max_pt=100):
     "size in bytes -> size in points"
-    sizes = [node.size for p,node in tree.iteritems()]
+    sizes = [node.size for p,node in tree.items()]
     min_s,max_s = min(sizes), max(sizes)
     convert = lambda s: int((max_pt-min_pt)*(s-min_s)/(max_s-min_s) + min_pt)
-    for p, node in tree.iteritems():
+    for p, node in tree.items():
         tree[p].font_pt = convert(node.size)
     return tree
 
 def prioritized(packs):
     "iter of names, sorted by priority"
     # first are the most central, with lots of links
-    stats = [(len(node.all), k) for k,node in packs.iteritems()]
+    stats = [(len(node.all), k) for k,node in packs.items()]
     stats = [n for l,n in sorted(stats, reverse=True)]
     # but slip in anyone who's deps are met early
     plotted = set()
     for n in (n for n in stats if n not in plotted):
         yield n
         plotted.add(n)
-        deps_met = set(k for k,node in packs.iteritems() if node.all <= plotted)
+        deps_met = set(k for k,node in packs.items() if node.all <= plotted)
         for n2 in deps_met - plotted:
             yield n2
         plotted.update(deps_met)
@@ -617,11 +617,11 @@ def link_pull(name, origin_n, packs):
     centers = g_centers + s_centers
     if not centers:  
         # new branch, try to avoid existing branches
-        centers = norm_ps(packs[l].center for l in packs.keys())
+        centers = norm_ps(packs[l].center for l in list(packs.keys()))
         if not centers:
             return (0,0)
         centers = [(-x,-y) for x,y in centers]
-    return map(sum, zip(*centers))
+    return list(map(sum, list(zip(*centers))))
 
 def xy2rad(x, y):
     if (x,y) == (0,0):
@@ -705,7 +705,7 @@ def place(packs, detail=False):
             yield p
     prii = pri()
     rt = Rtree()
-    p = prii.next()
+    p = next(prii)
     rt.insert(bbox((0,0), packs[p].dim), p)
     if detail:
         yield pri_cache[0], [(0,0)]
@@ -714,7 +714,7 @@ def place(packs, detail=False):
     for name in prii:
         node = packs[name]
         origin_name = best_origin(name, pri_cache, packs)
-        #print 'placing', name, 'around', origin_name
+        #print('placing', name, 'around', origin_name)
         origin = packs[origin_name].center
         # unplaced links and big text need more room
         scale = len(node.all-set(pri_cache))+1
@@ -728,16 +728,16 @@ def place(packs, detail=False):
             yield name, history
         else:
             yield name, center
-    #print rt.show()
-    #print copy.deepcopy(rt).unbalance()
-    #print copy.deepcopy(rt).leafiness()
+    #print(rt.show())
+    #print(copy.deepcopy(rt).unbalance())
+    #print(copy.deepcopy(rt).leafiness())
 
 def offset_coord(c, d):
     "corrects textbox origin"
     return c[0]-d[0]//2, c[1]  #+d[1]//2
 
 def xml_wrap(tag, inner=None, **kwargs):
-    kw = ' '.join('%s="%s"' % (str(k), str(v)) for k,v in kwargs.iteritems())
+    kw = ' '.join('%s="%s"' % (str(k), str(v)) for k,v in kwargs.items())
     if inner is None:
         return '<%s %s/>' % (tag, kw)
     return '<%s %s>%s</%s>' % (tag, kw, inner, tag)
@@ -772,14 +772,14 @@ def all_points(packs):
 
 def recenter(packs, points):
     "shift everything into quadrant 1"
-    min_x,min_y = map(min, zip(*points))
-    for node in packs.itervalues():
+    min_x,min_y = list(map(min, list(zip(*points))))
+    for node in packs.values():
         x,y = node.center
         node.center = x-min_x, y-min_y
     return packs
 
 def window_size(points):
-    xs,ys = zip(*points)
+    xs,ys = list(zip(*points))
     return max(xs)-min(xs), max(ys)-min(ys)
 
 def all_links(packs):
@@ -801,7 +801,7 @@ def svgify(packs):
     all_ps = all_points(packs)
     packs = recenter(packs, all_ps)
     width,height = window_size(all_ps)
-    for pack,node in packs.iteritems():
+    for pack,node in packs.items():
         # replace with a lookup structure of some sort
         # { test_fn(): 'color', ... }?  [ (pack_set, 'color'), ... ]?
         # also, order sensitive
@@ -887,16 +887,16 @@ def human_si(number):
 
 def console_dump(tree):
     options, args = parse()
-    stat_line = human_si(sum(node.size for node in tree.itervalues()))
-    print 'Total size:', stat_line
+    stat_line = human_si(sum(node.size for node in tree.values()))
+    print('Total size:', stat_line)
     if options.use_compression:
         tops = toplevel_packs(tree)
     else:
-        tops = tree.keys()
+        tops = list(tree.keys())
     if len(tops) == 1:
-        tops = tree.keys()
+        tops = list(tree.keys())
     for s,n in packs_by_size(tree, tops):
-        print human_si(s), n
+        print(human_si(s), n)
     return
 
 def secondlevel_sizes(tree):
@@ -911,8 +911,8 @@ def secondlevel_sizes(tree):
         sec_info.append((size/len(aboves), s, size, aboves))
     sec_info.sort(reverse=True)
     for null, s, size, aboves in sec_info:
-        print '%s: %s ' % (s, human_si(size))
-        print '\t', ' '.join(sorted(aboves))
+        print('%s: %s ' % (s, human_si(size)))
+        print('\t', ' '.join(sorted(aboves)))
 
 def main():
     arch = Arch()
@@ -921,7 +921,7 @@ def main():
     textfile = Textfile()
     options, args = parse()
     filename = os.path.expanduser(options.filename)
-    print 'Loading package info'
+    print('Loading package info')
     if options.mode == 'arch':
         tree = arch.local_load()
     if options.mode == 'arch-repo':
@@ -935,9 +935,9 @@ def main():
     if options.mode == 'ipkg':
         tree = debian.local_load(status_path='/usr/lib/ipkg/status')
         # ipkg reports bytes, not KB
-        for node in tree.itervalues():
+        for node in tree.values():
             node.size /= 1024
-    stat_line = human_si(sum(v.size for k,v in tree.items()))
+    stat_line = human_si(sum(v.size for k,v in list(tree.items())))
     if options.rip:
         open(filename + '.txt', 'w').write(repr(tree))
         return
@@ -947,17 +947,17 @@ def main():
     if options.shared:
         secondlevel_sizes(tree)
         return
-    print 'Placing %i nodes' % len(tree)
+    print('Placing %i nodes' % len(tree))
     tree = pt_sizes(tree, *options.point_size)
     for n,c in place(tree):
         tree[n].center = c
     tree = recenter(tree, all_points(tree))
     tree[stat_line] = Node(name=stat_line, font_pt=sum(options.point_size)//2)
-    print 'Saving SVG'
+    print('Saving SVG')
     svgify(tree)
     if options.svg_only:
         return
-    print 'Rendering PNG'
+    print('Rendering PNG')
     png_conversion = ['inkscape -D -e %(fn)s.png %(fn)s.svg',
                       'svg2png %(fn)s.svg %(fn)s.png',
                       'convert %(fn)s.svg %(fn)s.png']
@@ -967,13 +967,13 @@ def main():
             continue
         call_status(cmd_line % {'fn':filename})
         if call_status('which optipng') == 0:
-            print 'Optimizing PNG'
+            print('Optimizing PNG')
             call_status('optipng %s.png' % filename)
         return  # after first success
-    print 'No way to convert SVG to PNG.'
-    print 'Inkscape, svg2png or imagemagick would be nice.'
-    print 'Alternatives: "pacgraph-tk" or "pacgraph --console".'
-    print
+    print('No way to convert SVG to PNG.')
+    print('Inkscape, svg2png or imagemagick would be nice.')
+    print('Alternatives: "pacgraph-tk" or "pacgraph --console".')
+    print()
     console_dump(tree)
 
 if __name__ == "__main__":

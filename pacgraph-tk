@@ -1,11 +1,11 @@
-#! /usr/bin/env python2
+#! /usr/bin/env python3
 
 dev = False
 profiling = False
 
-import Tkinter as tk
+import tkinter as tk
 from multiprocessing import Process
-import sys, threading, Queue, time
+import sys, threading, queue, time
 
 if not dev:
     import imp
@@ -139,7 +139,7 @@ def sync_place():
     frame_delay = 10  # milliseconds
     hilite(None, None, False)
     try:
-        name, centers = place_iter.next()
+        name, centers = next(place_iter)
     except StopIteration:
         # zoom is broken during the animation
         # so be lame and don't enable until now
@@ -187,15 +187,15 @@ def main():
     global canvas, tree, motion, cant, place_iter
     arch = pacgraph.Arch()
     if len(sys.argv) == 1:
-        print 'Loading local repo.'
+        print('Loading local repo.')
         tree = arch.local_load()
     else:
-        print 'Loading repository.'
+        print('Loading repository.')
         tree = arch.repo_load()
-    print 'Preparing %i nodes.' % len(tree)
+    print('Preparing %i nodes.' % len(tree))
     tree = pacgraph.pt_sizes(tree, 10, 100)
-    print 'Hover, drag, scroll and type to control.'
-    print 'Red dots are the path taken to find empty space.'
+    print('Hover, drag, scroll and type to control.')
+    print('Red dots are the path taken to find empty space.')
     
     root = tk.Tk()
     canvas = tk.Canvas(root, bg=colors['bg'])
