@@ -165,18 +165,30 @@ class Arch(object):
             tree2[p] = Node(name=p, size=info['SIZE'], links=set(deps), explicit=info['REASON'])
         return tree2
     
+    def dbpath(self):
+        "super hacky"
+        if not os.path.isfile('/etc/pacman.conf'):
+            return '/var/lib/pacman/'
+        for line in open('/etc/pacman.conf'):
+            line = line.strip()
+            if not line.startswith('DBPath'):
+                continue
+            return line.partition('=')[2].strip()
+        return '/var/lib/pacman/'
+
     def local_load(self):
-        dirs = ['/var/lib/pacman/local/']
+        dbpath = self.dbpath()
+        dirs = ['local']
+        dirs = [pj(dbpath, d) for d in dirs]
         tree = compress_chains(bilink_tree(self.merge_tree(self.load_tree(dirs))))
         return legal_links(tree)
     
     def repo_load(self):
         options, args = parse()
         packages = args
-        dirs = ['/var/lib/pacman/sync/community/',
-                '/var/lib/pacman/sync/core/',
-                '/var/lib/pacman/sync/extra/',
-                '/var/lib/pacman/sync/multilib/',]
+        dbpath = self.dbpath()
+        dirs = ['community', 'core', 'extra', 'multilib']
+        dirs = [pj(dbpath, d) for d in dirs]
         tree = self.merge_tree(self.load_tree(dirs))
         if not packages:
             return legal_links(compress_chains(bilink_tree(tree)))
