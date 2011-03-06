@@ -18,8 +18,8 @@ pj = os.path.join
 class Node(object):
     def __init__(self, **kwargs):
         self.name     = ''      # matches dict key
-        self.links    = set() # of name strings
-        self.inverse  = set() # of name strings
+        self.links    = set()   # of name strings
+        self.inverse  = set()   # of name strings
         self.size     = 0       # bytes, usually
         self.font_pt  = 0       # scaled from size
         self.explicit = False   # True if explicitly installed package
@@ -188,7 +188,7 @@ class Arch(object):
         packages = args
         dbpath = self.dbpath()
         dirs = ['community', 'core', 'extra', 'multilib']
-        dirs = [pj(dbpath, d) for d in dirs]
+        dirs = [pj(dbpath, 'sync', d) for d in dirs]
         tree = self.merge_tree(self.load_tree(dirs))
         if not packages:
             return legal_links(compress_chains(bilink_tree(tree)))
