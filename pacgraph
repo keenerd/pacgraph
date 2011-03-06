@@ -870,11 +870,13 @@ def parse():
 
     beta = optparse.OptionGroup(parser, "Experimental Options")
     beta.add_option('-m', '--mode', dest='mode', default=default_action,
-            help='Curently supported modes are arch, arch-repo (buggy), debian (buggy), redhat (buggy) and ipkg (buggy).  Default is %s.' % default_action)
+            help='Curently supported modes are arch, arch-repo, debian, redhat and ipkg.  Default is %s.' % default_action)
     beta.add_option('-n', '--no-compression', dest='use_compression', action='store_false', default=True,
             help='Disable all chain compression.')
-    beta.add_option( '--shared', dest='shared', action='store_true', default=False,
+    beta.add_option('--shared', dest='shared', action='store_true', default=False,
             help='Compare shared libraries.')
+    beta.add_option('--indexed', dest='indexed', action='store_true', default=False,
+            help='Use a faster (but lossy) optimization method.')
     parser.add_option_group(beta)
     
     options, args = parser.parse_args()
@@ -966,7 +968,10 @@ def main():
         if call_status('which %s' % app) != 0:
             continue
         call_status(cmd_line % {'fn':filename})
-        if call_status('which optipng') == 0:
+        if options.indexed and call_status('which mogrify')==0:
+            print('Indexing PNG')
+            call_status('mogrify -quality 100 -type optimize -flatten +matte -colors 127 %s.png' % filename)
+        elif call_status('which optipng') == 0:
             print('Optimizing PNG')
             call_status('optipng %s.png' % filename)
         return  # after first success
