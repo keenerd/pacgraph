@@ -115,8 +115,9 @@ class Arch(object):
         for p in packages - dirs:
             try:
                 info = {}
-                arch_file = open(pj(p,'depends'), 'r')
-                info.update(self.load_info(arch_file))
+                if os.path.isfile(pj(p, 'depends')): 
+                    arch_file = open(pj(p,'depends'), 'r')
+                    info.update(self.load_info(arch_file))
                 arch_file = open(pj(p,'desc'), 'r')
                 info.update(self.load_info(arch_file))
                 name, info = self.strip_info(info)
