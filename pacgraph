@@ -192,13 +192,15 @@ class Arch(object):
         dirs = ['community', 'core', 'extra', 'multilib']
         dirs = [pj(dbpath, 'sync', d) for d in dirs]
         tars = ['community', 'core', 'extra', 'multilib']
-        tars = [pj(dbpath, 'sync', '%s.db' % t) for t in tars]
+        #tars = [pj(dbpath, 'sync', '%s.db' % t) for t in tars]
+        tars = [pj(dbpath, '%s.db.tar.gz' % t) for t in tars]
         tars = [t for t in tars if os.path.isfile(t)]
         if tars:
             tree = {}
             [tree.update(self.load_tarball(t)) for t in tars]
         else:
-            tree = self.merge_tree(self.load_tree(dirs))
+            tree = self.load_tree(dirs)
+        tree = self.merge_tree(tree)
         if not packages:
             return legal_links(compress_chains(bilink_tree(tree)))
         deps = [d for p in packages for d in full_deps(p, tree)]
