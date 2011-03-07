@@ -1,10 +1,10 @@
 #! /usr/bin/env python3
 
-import os, copy, math, tarfile, optparse, subprocess
+import os, copy, math, codecs, tarfile, optparse, subprocess
+from math import cos, sin, atan2, hypot
 from random import random, randint
 from itertools import *
 from collections import deque, defaultdict
-from math import cos, sin, atan2, hypot
 tau = math.pi * 2
 pj = os.path.join
 
@@ -97,7 +97,7 @@ class Arch(object):
             if not member.isfile():
                 continue
             path = member.name
-            raw = db.extractfile(member)
+            raw = codecs.getreader('utf8')(db.extractfile(member))
             name,sub = os.path.split(path)
             packages[name][sub] = raw
         tree = {}
@@ -190,7 +190,14 @@ class Arch(object):
         dbpath = self.dbpath()
         dirs = ['community', 'core', 'extra', 'multilib']
         dirs = [pj(dbpath, 'sync', d) for d in dirs]
-        tree = self.merge_tree(self.load_tree(dirs))
+        tars = ['community', 'core', 'extra', 'multilib']
+        tars = [pj(dbpath, 'sync', '%s.db.tar.gz' % t) for t in tars]
+        tars = [t for t in tars if os.path.isfile(t)]
+        if tars:
+            tree = {}
+            [tree.update(self.load_tarball(t)) for t in tars]
+        else:
+            tree = self.merge_tree(self.load_tree(dirs))
         if not packages:
             return legal_links(compress_chains(bilink_tree(tree)))
         deps = [d for p in packages for d in full_deps(p, tree)]
