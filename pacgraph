@@ -192,8 +192,8 @@ class Arch(object):
         dirs = ['community', 'core', 'extra', 'multilib']
         dirs = [pj(dbpath, 'sync', d) for d in dirs]
         tars = ['community', 'core', 'extra', 'multilib']
-        #tars = [pj(dbpath, 'sync', '%s.db' % t) for t in tars]
-        tars = [pj(dbpath, '%s.db.tar.gz' % t) for t in tars]
+        tars = [pj(dbpath, 'sync', '%s.db' % t) for t in tars]
+        #tars = [pj(dbpath, '%s.db.tar.gz' % t) for t in tars]
         tars = [t for t in tars if os.path.isfile(t)]
         if tars:
             tree = {}
