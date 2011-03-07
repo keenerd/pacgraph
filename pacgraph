@@ -350,6 +350,8 @@ class Rtree(object):
         self.last_hit = None
         if box:
             self.box = tuple(box)
+    def __lt__(self, other):
+        return True  # haaaack
     def show(self, depth=0):
         head = '  ' * depth + str(self.box) + ' '
         if self.name:
