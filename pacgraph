@@ -825,7 +825,7 @@ def svgify(packs):
     toplevel = toplevel_packs(packs)
     bottomlevel = set(packs) - toplevel
     needs, needed_by = [], []
-    if args:
+    if args and ((options.mode != 'arch-repo') ^ options.show_req):
         needs     = flatten(full_deps(p, packs, reverse=False) for p in args)
         needed_by = flatten(full_deps(p, packs, reverse=True)  for p in args)
     all_ps = all_points(packs)
@@ -843,7 +843,7 @@ def svgify(packs):
             node.color = options.highlight[1]
         if pack in needed_by:
             node.color = options.highlight[2]
-        if pack in args:
+        if pack in args and ((options.mode != 'arch-repo') ^ options.show_req):
             node.color = options.highlight[0]
     texts = [svg_text(packs[p]) for p in packs]
     paths = [svg_spline(*line) for line in all_links(packs)]
