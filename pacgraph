@@ -203,8 +203,13 @@ class Arch(object):
         tree = self.merge_tree(tree)
         if not packages:
             return legal_links(compress_chains(bilink_tree(tree)))
-        deps = [d for p in packages for d in full_deps(p, tree)]
-        tree2 = dict((k,v) for k,v in tree.items() if k in deps)
+        reqs = set()
+        if options.show_req:
+            reqs = set(k for k,v in tree.items() if set(packages) & v.links)
+        deps = set()
+        for p in set(packages) | reqs:
+            deps.update(full_deps(p, tree))
+        tree2 = dict((k,v) for k,v in tree.items() if k in deps | reqs)
         return legal_links(bilink_tree(tree2))
 
 class Debian(object):
@@ -820,7 +825,7 @@ def svgify(packs):
     toplevel = toplevel_packs(packs)
     bottomlevel = set(packs) - toplevel
     needs, needed_by = [], []
-    if args and options.mode not in ['arch-repo']:
+    if args:
         needs     = flatten(full_deps(p, packs, reverse=False) for p in args)
         needed_by = flatten(full_deps(p, packs, reverse=True)  for p in args)
     all_ps = all_points(packs)
@@ -838,7 +843,7 @@ def svgify(packs):
             node.color = options.highlight[1]
         if pack in needed_by:
             node.color = options.highlight[2]
-        if pack in args and options.mode not in ['arch-repo']:
+        if pack in args:
             node.color = options.highlight[0]
     texts = [svg_text(packs[p]) for p in packs]
     paths = [svg_spline(*line) for line in all_links(packs)]
@@ -888,7 +893,7 @@ def parse():
             help='Color of packages which are dependencies.')
     colors.add_option('-i', '--highlight', dest='highlight', metavar='COLOR COLOR COLOR', nargs=3,
             default=('#00cc00', '#ff0000', '#700060'),
-            help='Color of selected package, selected dependancies, selected needed-by.')
+            help='Color of selected package, selected dependencies, selected needed-by.')
     colors.add_option('-p', '--point', dest='point_size', metavar='INT INT', type='int', nargs=2, default=(10,100),
             help='Takes two integers, for the smallest and largest font size.  Default is -p 10 100.')
     parser.add_option_group(colors)
@@ -902,6 +907,8 @@ def parse():
             help='Compare shared libraries.')
     beta.add_option('--indexed', dest='indexed', action='store_true', default=False,
             help='Use a faster (but lossy) optimization method.')
+    beta.add_option('--show-req-by', dest='show_req', action='store_true', default=False,
+            help='Includes required-by of specified packages.  Only works for arch-repo.')
     parser.add_option_group(beta)
     
     options, args = parser.parse_args()
