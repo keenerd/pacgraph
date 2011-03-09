@@ -881,6 +881,8 @@ def parse():
             help='Rips a copy of your installed packages to pacgraph.txt.  Good for debugging.')
     parser.add_option('-f', '--file', dest='filename', default='pacgraph',
             help='Override default filename/location.  Do not specify an extension.')
+    parser.add_option('--disable-palette', dest='indexed', action='store_false', default=True,
+            help='Disables lossy palette compression.')
     
     colors = optparse.OptionGroup(parser, "Theming Options")
     colors.add_option('-b', '--background', dest='background', metavar='COLOR', default='#ffffff',
@@ -905,8 +907,6 @@ def parse():
             help='Disable all chain compression.')
     beta.add_option('--shared', dest='shared', action='store_true', default=False,
             help='Compare shared libraries.')
-    beta.add_option('--indexed', dest='indexed', action='store_true', default=False,
-            help='Use a faster (but lossy) optimization method.')
     beta.add_option('--show-req-by', dest='show_req', action='store_true', default=False,
             help='Includes required-by of specified packages.  Only works for arch-repo.')
     parser.add_option_group(beta)
@@ -1003,9 +1003,6 @@ def main():
         if options.indexed and call_status('which mogrify')==0:
             print('Indexing PNG')
             call_status('mogrify -quality 100 -type optimize -flatten +matte -colors 127 %s.png' % filename)
-        elif call_status('which optipng') == 0:
-            print('Optimizing PNG')
-            call_status('optipng %s.png' % filename)
         return  # after first success
     print('No way to convert SVG to PNG.')
     print('Inkscape, svg2png or imagemagick would be nice.')
