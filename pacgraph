@@ -1014,13 +1014,3 @@ if __name__ == "__main__":
     main()
     #import cProfile; cProfile.run("main()", sort=1)
 
-"""
-choose centeral node by size/childs, instead of size?
-
-possible/future command line options
-
--a  --add         packages
--d  --dot         load dot file
-
-line weight? alpha? tree dump/load?
-"""
