@@ -13,11 +13,12 @@ optdepends=('inkscape: png backend'
             'svg2png: png backend'
             'tk: gui version')
 source=(http://kmkeen.com/pacgraph/$pkgname-$pkgver.tar.gz)
-md5sums=('43c3a95014461dc1da1660b133676321')
+md5sums=('659db0e796a43209181fbebe2f657e15')
 
 build() {
   cd "$srcdir/$pkgname"
   install -D -m 0755 pacgraph    "$pkgdir/usr/bin/pacgraph"
   install -D -m 0755 pacgraph-tk "$pkgdir/usr/bin/pacgraph-tk"
+  install -Dm644     $pkgname.1  "$pkgdir/usr/share/man/man1/$pkgname.1"
 }
 
