@@ -1,6 +1,6 @@
 # Maintainer: Kyle Keen <keenerd@gmail.com>
 pkgname=pacgraph
-pkgver=20110317
+pkgver=20110629
 pkgrel=1
 pkgdesc="Draws a graph of installed packages to PNG/SVG/GUI/console.  Good for finding bloat."
 arch=('any')
@@ -10,10 +10,9 @@ depends=('python')
 makedepends=()
 optdepends=('inkscape: png backend'
             'imagemagick: png backend'
-            'svg2png: png backend'
             'tk: gui version')
 source=(http://kmkeen.com/pacgraph/$pkgname-$pkgver.tar.gz)
-md5sums=('659db0e796a43209181fbebe2f657e15')
+md5sums=('8f6da3a2fc4b8c5bb924767014b1cfb2')
 
 build() {
   cd "$srcdir/$pkgname"

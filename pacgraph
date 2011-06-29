@@ -224,8 +224,8 @@ class Debian(object):
         size = 0
         if status_path is None:
             status_path = '/var/lib/dpkg/status'
-        file = open(status_path, 'r')
-        for line in file:
+        data = open(status_path, 'r')
+        for line in data:
             if line.startswith('Package:'):
                 name = line.split(':')[1].strip()
             elif line.startswith('Status'):
@@ -243,7 +243,7 @@ class Debian(object):
                 deps = set()
                 name = ''
                 size = 0
-        file.close()
+        data.close()
         return tree
     
     def local_load(self, status_path=None):
@@ -317,6 +317,11 @@ class Crux(object):
             deps = self.find_deps(name)
             tree[name] = Node(name=name, size=size, links=set(deps))
         return tree
+
+class Gentoo(object):
+    def local_load(self):
+        print('Not yet implemented.')
+        return None
 
 class Textfile(object):
     """ VERY ALPHA, frequent to change!
@@ -867,7 +872,7 @@ def call_stdout(cmd):
     return subp.communicate()[0].split('\n')
 
 def parse():
-    default_action = 'arch'
+    default_action = 'autodetect'
     parser = optparse.OptionParser(description='Produces two files, pacgraph.svg and pacgraph.png.  Colors should be entered as hex values like "#ffffff".  SVG named colors may also work, see http://en.wikipedia.org/wiki/Web_colors .  Packages listed in the args are highlighted.')
     parser.add_option('-s', '--svg', dest='svg_only', action='store_true', default=False,
             help='Produce the SVG but do not attempt to rasterize it.')
@@ -948,6 +953,9 @@ def secondlevel_sizes(tree):
         print('%s: %s ' % (s, human_si(size)))
         print('\t', ' '.join(sorted(aboves)))
 
+def exists(app):
+    return call_status('which %s' % app) == 0
+
 def main():
     arch = Arch()
     debian = Debian()
@@ -955,6 +963,23 @@ def main():
     textfile = Textfile()
     options, args = parse()
     filename = os.path.expanduser(options.filename)
+    tree = None
+    if options.mode == 'autodetect':
+        if any(map(exists, 'emerge paludis'.split())):
+            print ('Autodetected gentoo.')
+            options.mode = 'gentoo'
+        if exists('rpm'):
+            print ('Autodetected rpm.')
+            options.mode = 'redhat'
+        if any(map(exists, 'dpkg apt aptitude'.split())):
+            print ('Autodetected deb.')
+            options.mode = 'debian'
+        if exists('ipkg'):
+            print ('Autodetected ipkg.')
+            options.mode = 'ipkg'
+        if exists('pacman'):
+            print ('Autodetected Arch.')
+            options.mode = 'arch'
     print('Loading package info')
     if options.mode == 'arch':
         tree = arch.local_load()
@@ -971,6 +996,9 @@ def main():
         # ipkg reports bytes, not KB
         for node in tree.values():
             node.size /= 1024
+    if tree is None:
+        print('Could not load packages.  Manually specify --mode.')
+        return
     stat_line = human_si(sum(v.size for k,v in list(tree.items())))
     if options.rip:
         open(filename + '.txt', 'w').write(repr(tree))
@@ -997,10 +1025,10 @@ def main():
                       'convert %(fn)s.svg %(fn)s.png']
     for cmd_line in png_conversion:
         app = cmd_line.split()[0]
-        if call_status('which %s' % app) != 0:
+        if not exists(app):
             continue
         call_status(cmd_line % {'fn':filename})
-        if options.indexed and call_status('which mogrify')==0:
+        if options.indexed and exists('mogrify'):
             print('Indexing PNG')
             call_status('mogrify -quality 100 -type optimize -flatten +matte -colors 127 %s.png' % filename)
         return  # after first success
