@@ -1,0 +1,84 @@
+.\" man 7 groff_mdoc  Best resource ever
+.Dd March 18, 2011
+.Dt PACGRAPH \&1 "Pacgraph Manual"
+.Os " "
+.Sh NAME
+.Nm pacgraph
+.Nd PACGRAPH provides a birds eye view of all installed packages
+.Sh SYNOPSIS
+.Nm pacgraph
+-[h|s|o|e|c|r|n] [-f FILENAME] [-b|l|t|d COLOR] [-p INT INT] [-m MODE] [--shared] [--disable-palette] [package names]
+.Sh DESCRIPTION
+.Nm
+draws a pretty picture of your installed packages. Common uses are exploring dependency trees or finding hundreds of megs of useless packages.  Supported distributions include Arch, Debian and Redhat.
+.Pp
+.Nm
+will by default generate a pacgraph.svg and if a converter is found automatically produce pacgraph.png.  Alternately, pacgraph-tk provides and interactive version while pacgraph -c/--console produces a brief text summary.  A list of packages may be provided as arguments to select them.
+.Pp
+More information and example graphs may be found on the project's homepage, http://kmkeen.com/pacgraph
+.
+.Sh OPTIONS
+All of these are optional but many provide a means of generating a more aesthetically pleasing output.
+.Pp
+.Bl -tag -width ".." -compact
+.It Cm -h --help
+Show help message and exit.
+.Pp
+.It Cm -s --svg
+Produce the SVG but do not attempt to rasterize it.
+.Pp
+.It Cm -f FILENAME --file=FILENAME
+Override default filename/location.  Do not specify an extension.
+.Pp
+.It Cm -c --console
+Print summary to console, does not draw a graph.  Very fast and to the point.
+.Pp
+.It Cm --disable-palette
+Disables lossy palette compression.
+.Pp
+.Sh THEMING OPTIONS
+Colors may be words (white, red, etc), #RGB hex values or #RRGGBB hex values.  Remember to quote/escape the #.
+.Pp
+.Bl -tag -width ".." -compact
+.It Cm -b COLOR --background=COLOR
+Background color.
+.Pp
+.It Cm -l COLOR --link=COLOR
+Color of links between packages.
+.Pp
+.It Cm -t COLOR --top=COLOR
+Color of packages which are not dependencies.
+.Pp
+.It Cm -d COLOR --dep=COLOR
+Color of packages which are dependencies.
+.Pp
+.It Cm -i COLOR COLOR COLOR --highlight=COLOR COLOR COLOR
+Color of selected package, selected dependencies, selected needed-by.
+.Pp
+.It Cm -p INT INT --point=INT INT
+Takes two integers, for the smallest and largest font size.  Default is -p 10 100.
+.Pp
+.Sh OTHER OPTIONS
+.Pp
+.Bl -tag -width ".." -compact
+.It Cm -m MODE --mode=MODE
+Currently supported modes are arch, arch-repo, debian, redhat and ipkg.  Default is arch.  Use arch-repo to plot specific packages instead of installed packages.
+.Pp
+.It Cm -n --no-compression
+Disable all chain compression.
+.Pp
+.It Cm --shared
+Compare shared libraries.
+.Pp
+.It Cm --show-req-by
+Includes required-by of specified packages.  Only works for arch-repo.
+.Sh AUTHORS
+.An -nosplit
+.Pp
+.Nm
+was written by
+.An Kyle Keen Aq keenerd@gmail.com 
+with patches from
+.An Carl Hamann
+for Debian and Redhat support.
+
