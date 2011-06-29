@@ -318,6 +318,54 @@ class Crux(object):
             tree[name] = Node(name=name, size=size, links=set(deps))
         return tree
 
+class Gentoo(object):
+
+    def get_name(self, pkg):
+        name = pkg.strip()
+        name = pkg.partition('/')[2]
+        ver = name.rfind('-')
+        if name[ver+1] == 'r':
+                name = name[:name.rfind('-', 0, ver)]
+        else:
+                name = name[:ver]
+        return name
+
+    def load_tree(self):
+        print("Getting packages size")
+        tree = {}
+        out = call_stdout('qsize -bCa')
+        for line in out:
+	        if line != '':
+                        words = line.split()
+                        name = self.get_name(words[0])
+                        size = words[5]
+                        tree[name] = Node(name=name, size=int(size), link=set())
+
+        print("Getting dependencies")
+        out = call_stdout('emerge --pretend --verbose --depclean')
+        for line in out:
+                if line[:4] == '    ':
+                        if line[4] == '@':
+                                if line[4:] == '@selected':
+                                        tree[name].explicit = True
+                        else:
+                                name = self.get_name(line)
+                                tree[name].links.add(dep)
+                elif line[:2] == '  ':
+                        dep = self.get_name(line)
+                elif line[:3] == '>>>':
+                        break
+        return tree
+
+    def local_load(self):
+        tree = legal_links(self.load_tree())
+        tree = compress_chains(bilink_tree(tree))
+        return legal_links(tree)
+
+    def repo_load(self):
+        print('not implemented')
+        raise
+
 class Textfile(object):
     """ VERY ALPHA, frequent to change!
     loads a space delineated text file
@@ -864,7 +912,7 @@ def call_status(cmd):
 def call_stdout(cmd):
     "returns stdout"
     subp = subprocess.Popen(cmd, shell=True, stdin=None, stdout=subprocess.PIPE)
-    return subp.communicate()[0].split('\n')
+    return subp.communicate()[0].decode().split('\n')
 
 def parse():
     default_action = 'arch'
@@ -952,6 +1000,7 @@ def main():
     arch = Arch()
     debian = Debian()
     redhat = Redhat()
+    gentoo = Gentoo()
     textfile = Textfile()
     options, args = parse()
     filename = os.path.expanduser(options.filename)
@@ -964,6 +1013,8 @@ def main():
         tree = debian.local_load()
     if options.mode == 'redhat':
         tree = redhat.local_load()
+    if options.mode == 'gentoo':
+        tree = gentoo.local_load()
     if options.mode == 'textfile':
         tree = textfile.local_load()
     if options.mode == 'ipkg':
