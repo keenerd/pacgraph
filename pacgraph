@@ -333,7 +333,7 @@ class Gentoo(object):
     def load_tree(self):
         print("Getting packages size")
         tree = {}
-        out = call_stdout('qsize -bCa')
+        out = call_stdout('qsize --bytes --nocolor --all')
         for line in out:
 	        if line != '':
                         words = line.split()
