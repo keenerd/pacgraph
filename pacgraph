@@ -999,6 +999,24 @@ def secondlevel_sizes(tree):
 def exists(app):
     return call_status('which %s' % app) == 0
 
+def distro_detect():
+    if exists('pacman'):
+        print ('Autodetected Arch.')
+        return 'arch'
+    if exists('ipkg'):
+        print ('Autodetected ipkg.')
+        return 'ipkg'
+    if any(map(exists, 'dpkg apt aptitude'.split())):
+        print ('Autodetected deb.')
+        return 'debian'
+    if exists('rpm'):
+        print ('Autodetected rpm.')
+        return 'redhat'
+    if exists('emerge'):
+        print ('Autodetected gentoo.')
+        return 'gentoo'
+    return None
+
 def main():
     arch = Arch()
     debian = Debian()
@@ -1009,21 +1027,7 @@ def main():
     filename = os.path.expanduser(options.filename)
     tree = None
     if options.mode == 'autodetect':
-        if exists('emerge'):
-            print ('Autodetected gentoo.')
-            options.mode = 'gentoo'
-        if exists('rpm'):
-            print ('Autodetected rpm.')
-            options.mode = 'redhat'
-        if any(map(exists, 'dpkg apt aptitude'.split())):
-            print ('Autodetected deb.')
-            options.mode = 'debian'
-        if exists('ipkg'):
-            print ('Autodetected ipkg.')
-            options.mode = 'ipkg'
-        if exists('pacman'):
-            print ('Autodetected Arch.')
-            options.mode = 'arch'
+        options.mode = distro_detect()
     print('Loading package info')
     if options.mode == 'arch':
         tree = arch.local_load()
