@@ -324,9 +324,9 @@ class Gentoo(object):
         name = pkg.partition('/')[2]
         ver = name.rfind('-')
         if name[ver+1] == 'r':
-                name = name[:name.rfind('-', 0, ver)]
+            name = name[:name.rfind('-', 0, ver)]
         else:
-                name = name[:ver]
+            name = name[:ver]
         return name
 
     def load_tree(self):
@@ -334,26 +334,27 @@ class Gentoo(object):
         tree = {}
         out = call_stdout('qsize --bytes --nocolor --all')
         for line in out:
-	        if line != '':
-                        words = line.split()
-                        name = self.get_name(words[0])
-                        size = words[5]
-                        tree[name] = Node(name=name, size=int(size), link=set())
+            if line == '':
+                continue
+            words = line.split()
+            name = self.get_name(words[0])
+            size = words[5]
+            tree[name] = Node(name=name, size=int(size), link=set())
 
         print("Getting dependencies")
         out = call_stdout('emerge --pretend --verbose --depclean')
         for line in out:
-                if line[:4] == '    ':
-                        if line[4] == '@':
-                                if line[4:] == '@selected':
-                                        tree[name].explicit = True
-                        else:
-                                name = self.get_name(line)
-                                tree[name].links.add(dep)
-                elif line[:2] == '  ':
-                        dep = self.get_name(line)
-                elif line[:3] == '>>>':
-                        break
+            if line[:4] == '    ':
+                if line[4] == '@':
+                    if line[4:] == '@selected':
+                        tree[name].explicit = True
+                else:
+                    name = self.get_name(line)
+                    tree[name].links.add(dep)
+            elif line[:2] == '  ':
+                    dep = self.get_name(line)
+            elif line[:3] == '>>>':
+                    break
         return tree
 
     def local_load(self):
@@ -949,7 +950,7 @@ def parse():
 
     beta = optparse.OptionGroup(parser, "Experimental Options")
     beta.add_option('-m', '--mode', dest='mode', default=default_action,
-            help='Curently supported modes are arch, arch-repo, debian, redhat and ipkg.  Default is %s.' % default_action)
+            help='Curently supported modes are arch, arch-repo, debian, redhat, ipkg and gentoo.  Default is %s.' % default_action)
     beta.add_option('-n', '--no-compression', dest='use_compression', action='store_false', default=True,
             help='Disable all chain compression.')
     beta.add_option('--shared', dest='shared', action='store_true', default=False,
@@ -1008,7 +1009,7 @@ def main():
     filename = os.path.expanduser(options.filename)
     tree = None
     if options.mode == 'autodetect':
-        if any(map(exists, 'emerge paludis'.split())):
+        if exists('emerge'):
             print ('Autodetected gentoo.')
             options.mode = 'gentoo'
         if exists('rpm'):

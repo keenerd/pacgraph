@@ -10,7 +10,7 @@
 -[h|s|o|e|c|r|n] [-f FILENAME] [-b|l|t|d COLOR] [-p INT INT] [-m MODE] [--shared] [--disable-palette] [package names]
 .Sh DESCRIPTION
 .Nm
-draws a pretty picture of your installed packages. Common uses are exploring dependency trees or finding hundreds of megs of useless packages.  Supported distributions include Arch, Debian and Redhat.
+draws a pretty picture of your installed packages. Common uses are exploring dependency trees or finding hundreds of megs of useless packages.  Supported distributions include Arch, Debian, Redhat and Gentoo.
 .Pp
 .Nm
 will by default generate a pacgraph.svg and if a converter is found automatically produce pacgraph.png.  Alternately, pacgraph-tk provides and interactive version while pacgraph -c/--console produces a brief text summary.  A list of packages may be provided as arguments to select them.
@@ -62,7 +62,7 @@ Takes two integers, for the smallest and largest font size.  Default is -p 10 10
 .Pp
 .Bl -tag -width ".." -compact
 .It Cm -m MODE --mode=MODE
-Currently supported modes are arch, arch-repo, debian, redhat and ipkg.  Default is arch.  Use arch-repo to plot specific packages instead of installed packages.
+Currently supported modes are arch, arch-repo, debian, redhat, ipkg and gentoo.  Default is autodetect.  Use arch-repo to plot specific packages instead of installed packages.
 .Pp
 .It Cm -n --no-compression
 Disable all chain compression.
@@ -80,5 +80,8 @@ was written by
 .An Kyle Keen Aq keenerd@gmail.com 
 with patches from
 .An Carl Hamann
-for Debian and Redhat support.
+for Debian and Redhat support
+and
+.An André Aparício
+for Gentoo support.
 
