@@ -186,7 +186,8 @@ def sync_place():
 def main():
     global canvas, tree, motion, cant, place_iter
     loaders = {'arch': pacgraph.Arch, 'debian': pacgraph.Debian,
-               'redhat': pacgraph.Redhat, 'gentoo': pacgraph.Gentoo}
+               'redhat': pacgraph.Redhat, 'gentoo': pacgraph.Gentoo,
+               'frugalware': pacgraph.Frugal}
     loader = loaders[pacgraph.distro_detect()]()
     if len(sys.argv) == 1:
         print('Loading local repo.')

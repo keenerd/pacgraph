@@ -212,6 +212,18 @@ class Arch(object):
         tree2 = dict((k,v) for k,v in tree.items() if k in deps | reqs)
         return legal_links(bilink_tree(tree2))
 
+class Frugal(Arch):
+    def dbpath(self):
+        "super hacky"
+        if not os.path.isfile('/etc/pacman-g2.conf'):
+            return '/var/lib/pacman-g2/'
+        for line in open('/etc/pacman-g2.conf'):
+            line = line.strip()
+            if not line.startswith('DBPath'):
+                continue
+            return line.partition('=')[2].strip()
+        return '/var/lib/pacman-g2/'
+
 class Debian(object):
     "Expect lots of 'error: unknown' messages. May be due to pseudo-dependencies being filled by 'Provides:' entries."
     
@@ -958,7 +970,7 @@ def parse():
 
     beta = optparse.OptionGroup(parser, "Experimental Options")
     beta.add_option('-m', '--mode', dest='mode', default=default_action,
-            help='Curently supported modes are arch, arch-repo, debian, redhat, ipkg and gentoo.  Default is %s.' % default_action)
+            help='Curently supported modes are arch, arch-repo, debian, redhat, ipkg, gentoo, frugalware and frugal-repo.  Default is %s.' % default_action)
     beta.add_option('-n', '--no-compression', dest='use_compression', action='store_false', default=True,
             help='Disable all chain compression.')
     beta.add_option('--shared', dest='shared', action='store_true', default=False,
@@ -1030,6 +1042,7 @@ def main():
     debian = Debian()
     redhat = Redhat()
     gentoo = Gentoo()
+    frugal = Frugal()
     textfile = Textfile()
     options, args = parse()
     filename = os.path.expanduser(options.filename)
@@ -1047,6 +1060,10 @@ def main():
         tree = redhat.local_load()
     if options.mode == 'gentoo':
         tree = gentoo.local_load()
+    if options.mode == 'frugalware':
+        tree = frugal.local_load()
+    if options.mode == 'frugal-repo':
+        tree = frugal.repo_load()
     if options.mode == 'textfile':
         tree = textfile.local_load()
     if options.mode == 'ipkg':
