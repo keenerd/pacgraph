@@ -833,13 +833,21 @@ def quad_spline(p1, p2):
     c = control_point(p1, p2)
     return 'M%i,%i Q%i,%i %i,%i' % (p1 + c + p2)
 
+def svg_spline(point1, point2):
+    return xml_wrap('path', None, d=quad_spline(point1, point2))
+
+def arc_path(p1, p2):
+    "boofor DSL in XML"
+    # http://paulbourke.net/geometry/circlefrom3/
+    return 'M%i,%i A%i,%i %i,%i' % (p1 + c + p2)
+
+def svg_arc(point1, point2):
+    return xml_wrap('path', None, d=arc_path(point1, point2))
+
 def svg_text(node):
     x,y = offset_coord(node.center, node.dim)
     kw = {'font-size': node.font_pt}
     return xml_wrap('text', node.name, x=x, y=y, fill=node.color, **kw)
-
-def svg_spline(point1, point2):
-    return xml_wrap('path', None, d=quad_spline(point1, point2))
 
 def all_points(packs):
     "slightly incomplete, guestimates the splines"
