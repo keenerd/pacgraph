@@ -1020,6 +1020,7 @@ def exists(app):
     return call_status('which %s' % app) == 0
 
 def distro_detect():
+    # todo, replace this with an /etc/issue scanner
     if exists('pacman'):
         print ('Autodetected Arch.')
         return 'arch'
@@ -1031,6 +1032,9 @@ def distro_detect():
         return 'debian'
     if exists('rpm'):
         print ('Autodetected rpm.')
+        return 'redhat'
+    if exists('poldek'):
+        print ('Autodetected PLD.')
         return 'redhat'
     if exists('emerge'):
         print ('Autodetected gentoo.')
