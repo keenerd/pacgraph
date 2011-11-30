@@ -188,7 +188,10 @@ def main():
     loaders = {'arch': pacgraph.Arch, 'debian': pacgraph.Debian,
                'redhat': pacgraph.Redhat, 'gentoo': pacgraph.Gentoo,
                'frugalware': pacgraph.Frugal}
-    loader = loaders[pacgraph.distro_detect()]()
+    distro = pacgraph.distro_detect2()
+    if not distro:
+        pacgraph.distro_detect()
+    loader = loaders[distro]()
     if len(sys.argv) == 1:
         print('Loading local repo.')
         tree = loader.local_load()
