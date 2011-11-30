@@ -1027,7 +1027,7 @@ def distro_detect():
     if exists('ipkg'):
         print ('Autodetected ipkg.')
         return 'ipkg'
-    if any(map(exists, 'dpkg apt aptitude'.split())):
+    if any(map(exists, 'dpkg apt-get aptitude'.split())):
         print ('Autodetected deb.')
         return 'debian'
     if exists('rpm'):
@@ -1041,6 +1041,27 @@ def distro_detect():
         return 'gentoo'
     return None
 
+def distro_detect2():
+    "prototype /etc scanner"
+    is_r = lambda f: f.endswith('release') or f.endswith('version')
+    releases = [f for f in next(os.walk('/etc/'))[2] if is_r(f)]
+    releases = [f.partition('_')[0] for f in releases]
+    releases = [f.partition('-')[0] for f in releases]
+    if 'arch' in releases:
+        print ('Autodetected Arch')
+        return 'arch'
+    if 'redhat' in releases or 'fedora' in releases:
+        print ('Autodetected rpm')
+        return 'redhat'
+    if 'debian' in releases:
+        print ('Autodetected deb')
+        return 'debian'
+    if 'gentoo' in releases:
+        print ('Autodetected gentoo')
+        return 'gentoo'
+    print ('Warning: Could not autodetect from /etc')
+    return None
+
 def main():
     arch = Arch()
     debian = Debian()
@@ -1052,7 +1073,10 @@ def main():
     filename = os.path.expanduser(options.filename)
     tree = None
     if options.mode == 'autodetect':
-        options.mode = distro_detect()
+        options.mode = distro_detect2()
+        if not options.mode:
+            print ('Trying fallback package manager detection')
+            options.mode = distro_detect()
     print('Loading package info')
     if options.mode == 'arch':
         tree = arch.local_load()
