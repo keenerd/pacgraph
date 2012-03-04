@@ -1005,7 +1005,8 @@ def secondlevel_sizes(tree):
     # this is slightly lazy and only handles the common case
     # it ignores oddly shaped dep trees
     tops = toplevel_packs(tree)
-    seconds = set(tree[t].links for t in tops)
+    seconds = set()
+    [seconds.update(tree[t].links) for t in tops]
     sec_info = []
     for s in seconds:
         aboves = tree[s].inverse & tops  # lazy!
