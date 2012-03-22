@@ -983,9 +983,12 @@ def parse():
     return options, args
 
 def human_si(number):
-    powers = [(2**15,''), (2**25,'k'), (2**35,'M'), (2**45,'G')]
-    limit,si = [p for p in powers if p[0] > number][0]
-    return str(number//(limit//2**15)) + si +'B'
+    powers = [(2**10,''), (2**20,'k'), (2**30,'M')]
+    limit,si = ([p for p in powers if p[0] > number] + powers[-1:])[0]
+    n2 = str(round(number / (limit//2**10)))
+    if si == 'M':
+        n2 = '%0.1f' % round((number / float(limit//2**10)), 1)
+    return n2 + ' ' + si +'B'
 
 def console_dump(tree):
     options, args = parse()
