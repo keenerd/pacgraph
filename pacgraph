@@ -645,13 +645,16 @@ def legal_links(tree):
 #print('worst shared packages:', biggest_packs(tree)[:20])
 #print('most crucial packages:', biggest_packs(invert_tree(tree))[:20])
 
-def pt_sizes(tree, min_pt=10, max_pt=100):
+def pt_sizes(tree, min_pt=10, max_pt=100, by_area=False):
     "size in bytes -> size in points"
-    sizes = [node.size for p,node in tree.items()]
+    norm = lambda n: n.size
+    if by_area:
+        norm = lambda n: n.size / len(n.name)
+    sizes = [norm(node) for p,node in tree.items()]
     min_s,max_s = min(sizes), max(sizes)
     convert = lambda s: int((max_pt-min_pt)*(s-min_s)/(max_s-min_s) + min_pt)
     for p, node in tree.items():
-        tree[p].font_pt = convert(node.size)
+        tree[p].font_pt = convert(norm(node))
     return tree
 
 def prioritized(packs):
@@ -977,6 +980,8 @@ def parse():
             help='Compare shared libraries.')
     beta.add_option('--show-req-by', dest='show_req', action='store_true', default=False,
             help='Includes required-by of specified packages.  Only works for arch-repo.')
+    beta.add_option('--by-area', dest='by_area', action='store_true', default=False,
+            help='Represent sizes by the area of the name, not the pt of the name.')
     parser.add_option_group(beta)
     
     options, args = parser.parse_args()
