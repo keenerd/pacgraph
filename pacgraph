@@ -1132,7 +1132,7 @@ def main():
     if options.svg_only:
         return
     print('Rendering PNG')
-    png_conversion = ['inkscape -D -e %(fn)s.png %(fn)s.svg',
+    png_conversion = ['inkscape -D -o %(fn)s.png %(fn)s.svg',
                       'svg2png %(fn)s.svg %(fn)s.png',
                       'convert %(fn)s.svg %(fn)s.png']
     for cmd_line in png_conversion:
